@@ -13,6 +13,6 @@ conda env create --file robotics_conda_env.yml
 
 - This environment was only run on my local Linux desktop machine, it has not been tested on other systems.
 - The environment in the `.yml` file is provided "as-is" and may contain unnecessary packages that were used or considered at one point.
-- The conda environment I'm using is constantly changing, so the YAML in this folder may be a bit outdated. You may get an `ImportError` or `ModuleNotFoundError` and need to manually install some packages. I will try to update the YAML (or add new ones) whenever there are significant changes or updates to the environment. 
+- The conda environment I'm using is constantly changing, so the YAML in this folder may be a bit outdated. You may get an `ImportError` or `ModuleNotFoundError` when trying to run code in this repo and need to manually install some packages. I will try to update the YAML (or add new ones) whenever there are significant changes or updates to the environment. 
 
 
