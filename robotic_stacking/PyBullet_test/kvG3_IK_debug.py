@@ -138,19 +138,19 @@ gripF_key = ord('2')
 reset_key = ord('0')
 
 # Add debugging lines to display target
-loc1_id = pbt.addUserDebugLine([-0.025, 0., 0.125], [0.025, 0., 0.125], 
+loc1_id = pbt.addUserDebugLine([0., 0., 0.125], [0.025, 0., 0.125], 
 	lineColorRGB=[1., 0.6, 0.2], 
 	lineWidth=3.5, 
 	parentObjectUniqueId=robot_arm_ID, 
 	parentLinkIndex=end_effector_id
 	)  # X - orange
-loc2_id = pbt.addUserDebugLine([0., -0.025, 0.125], [0., 0.025, 0.125], 
+loc2_id = pbt.addUserDebugLine([0., 0, 0.125], [0., 0.025, 0.125], 
 	lineColorRGB=[1., 1., 0.2], 
 	lineWidth=3.5, 
 	parentObjectUniqueId=robot_arm_ID, 
 	parentLinkIndex=end_effector_id
 	)  # Y - yellow
-loc3_id = pbt.addUserDebugLine([0., 0., -0.098], [0., 0., 0.148], 
+loc3_id = pbt.addUserDebugLine([0., 0., 0.125], [0., 0., 0.15], 
 	lineColorRGB=[1., 0.2, 1.], 
 	lineWidth=3.5, 
 	parentObjectUniqueId=robot_arm_ID, 
