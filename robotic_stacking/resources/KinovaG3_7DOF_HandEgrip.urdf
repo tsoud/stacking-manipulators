@@ -478,9 +478,17 @@
   <link name="gripper_target">
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0"/>
-       <mass value="0.0"/>
-       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
+      <mass value="0.0"/>
+      <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
+    <visual>
+      <geometry>
+        <sphere radius="0.025"/>
+      </geometry>
+      <material name="light_blue">
+        <color rgba="0.5 1.0 1.0 0.4"/>
+      </material>
+    </visual>
   </link>
   <joint name="target_to_gripper" type="fixed">
     <parent link="Robotiq_HandE_gripper"/>
