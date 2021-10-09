@@ -118,6 +118,34 @@ angles_key = ord('1')
 # Key to reset arm to initial position
 reset_key = ord('0')
 
+# Add debugging lines to display target
+loc1_id = pbt.addUserDebugLine([0., 0., 0.125], [0.025, 0., 0.125], 
+	lineColorRGB=[1., 0.6, 0.2], 
+	lineWidth=3.5, 
+	parentObjectUniqueId=robot_arm_ID, 
+	parentLinkIndex=end_effector_id
+	)  # X - orange
+loc2_id = pbt.addUserDebugLine([0., 0, 0.125], [0., 0.025, 0.125], 
+	lineColorRGB=[1., 1., 0.2], 
+	lineWidth=3.5, 
+	parentObjectUniqueId=robot_arm_ID, 
+	parentLinkIndex=end_effector_id
+	)  # Y - yellow
+loc3_id = pbt.addUserDebugLine([0., 0., 0.125], [0., 0., 0.15], 
+	lineColorRGB=[1., 0.2, 1.], 
+	lineWidth=3.5, 
+	parentObjectUniqueId=robot_arm_ID, 
+	parentLinkIndex=end_effector_id
+	)  # Z - magenta
+
+# Set GUI camera for better view
+pbt.resetDebugVisualizerCamera(
+	cameraDistance=1.4, 
+	cameraYaw=45, 
+	cameraPitch=-42, 
+	cameraTargetPosition=[0.25, 0, 0]
+	)
+
 # Set GUI camera for better view
 pbt.resetDebugVisualizerCamera(
 	cameraDistance=1.4, 
