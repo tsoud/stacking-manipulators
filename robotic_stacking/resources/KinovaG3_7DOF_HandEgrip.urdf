@@ -493,6 +493,6 @@
   <joint name="target_to_gripper" type="fixed">
     <parent link="Robotiq_HandE_gripper"/>
     <child link="gripper_target"/>
-    <origin rpy="0 0 0" xyz="0 0 0.125"/>
+    <origin xyz="0 0 0.125" rpy="0 3.14159265 0" />
   </joint>
 </robot>
