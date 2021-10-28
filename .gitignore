@@ -1,2 +1,5 @@
-.cache
-.wbproj
+*.cache
+*.wbproj
+**/international
+settings.json
+target_test.py
