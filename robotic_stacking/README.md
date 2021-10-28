@@ -1,1 +1,1 @@
-Placeholder for directory description. Under construction :simple_smile:
+Placeholder for directory description. Under construction :slightly_smiling_face:
