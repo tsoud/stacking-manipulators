@@ -2,7 +2,7 @@
 
 # --------------------------------------------------------------------------- #
 '''
-A testing and debugging script to load a robot and test its movement using 
+A testing and debugging script to load a robot and test its movement using
 forward kinematics.
 '''
 # --------------------------------------------------------------------------- #
@@ -17,9 +17,9 @@ import pybullet_data
 
 # --------------------------------------------------------------------------- #
 
-# Give the physics simulation client a name. 
+# Give the physics simulation client a name.
 # For example: sim1, sim2, ... and so on for multiple simulations.
-# NOTE: This isn't necessary when running one simulation, but is used here 
+# NOTE: This isn't necessary when running one simulation, but is used here
 # clarity and making the code more applicable for general purposes.
 sim1 = pbt.connect(pbt.GUI)
 
@@ -35,12 +35,12 @@ robot_arm = os.path.join(resources_path, 'KinovaG3_7DOF_HandEgrip.urdf')
 cube = os.path.join(resources_path, 'small_cube.urdf')
 
 # Load a plane and cube
-plane_ID = pbt.loadURDF("plane.urdf", [0, 0, 0], 
+plane_ID = pbt.loadURDF("plane.urdf", [0, 0, 0],
 	useFixedBase=True, physicsClientId=sim1)
-cube_ID = pbt.loadURDF(cube, [0.3, 0.3, 0], 
+cube_ID = pbt.loadURDF(cube, [0.3, 0.3, 0],
 	useMaximalCoordinates=True, physicsClientId=sim1)
 # Load the robot model.
-robot_arm_ID = pbt.loadURDF(robot_arm, useFixedBase=True, 
+robot_arm_ID = pbt.loadURDF(robot_arm, useFixedBase=True,
 	flags=(pbt.URDF_USE_SELF_COLLISION)
 	)
 
@@ -60,7 +60,7 @@ for jt_id in range(n_joints):
 	if jt_info.linkName.decode('UTF-8') == 'right_finger_assembly':
 		grip_R = jt_info.ID
 	if jt_info.linkName.decode('UTF-8') == 'gripper_target':
-		target_id = jt_info.ID
+		target_link_id = jt_info.ID
 	joint_labels.append(jt_info)
 # Joint between bracelet and gripper is fixed and can be ignored
 arm_joint_ids = [j.ID for j in joint_labels[:end_effector_id]]
@@ -91,7 +91,7 @@ def add_parameters():
 	# Parameter controls for gripper (single slider for both fingers)
 	gripper = pbt.addUserDebugParameter('gripper', -3e-4, 0.03, 0)
 	grip_action = [gripper] * 2
-	
+
 	return joint_actions, grip_action
 
 # Enable force sensors for gripper
@@ -107,10 +107,10 @@ joint_actions, grip_action = add_parameters()
 
 # Function to print out end-link position and orientation
 def get_end_pose(end_link_id, bodyID=robot_arm_ID):
-	link_state = pbt.getLinkState(bodyUniqueId=bodyID, linkIndex=end_link_id)
-	position = link_state[0]
-	orientation = pbt.getEulerFromQuaternion(link_state[1])
-	print(f'Position = {position}, Orientation = {orientation}\n')
+    link_state = pbt.getLinkState(bodyUniqueId=bodyID, linkIndex=target_link_id)
+    position = link_state[0]
+    orientation = pbt.getEulerFromQuaternion(link_state[1])
+    print(f'\nPosition = {position}, Orientation = {orientation}')
 
 # Listen for '1' keypress to print end pose.
 # ('p' is already used by PyBullet GUI for something else.)

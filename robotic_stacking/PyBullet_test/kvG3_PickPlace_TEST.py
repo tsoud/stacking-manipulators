@@ -112,7 +112,7 @@ def get_target_link_state(robot_arm_ID=robot_arm_ID,
     # Return position and orientation
     position = target_link_state[0]
     orientation = target_link_state[1]
-    # orientation = pbt.getEulerFromQuaternion(target_link_state[1])
+
     return np.asarray(position), np.asarray(orientation)
 
 
@@ -202,8 +202,6 @@ def move_to_target(target_position, target_orientation,
     '''
     done = False
     target_position = target_position + clearances + offsets
-    num_translation_steps = num_steps
-    num_rotation_steps = np.max([int(num_steps // 5), 1])
     curr_posn, curr_ornt = get_target_link_state(robot_arm_ID, target_link_id)
     translation_stops = np.linspace(
         curr_posn, target_position,

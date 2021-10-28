@@ -125,16 +125,15 @@ random = ' (random)' if random_pose else ''
 print(f'\nArm base pose{random}:', getRobotBasePose(AxisAngle=True), '\n')
 
 base_pos, base_ort = getRobotBasePose()
-
 base_trnsfm = pbt.invertTransform(base_pos, base_ort)
 wrld_trnsfm = (base_pos, base_ort)
 
-# Get an object's pose in the robot's local cs
+# Get a target world pose in the robot's local cs
 def wrld2loc(target_pos, target_ort, transform=base_trnsfm):
     return pbt.multiplyTransforms(
         transform[0], transform[1], target_pos, target_ort
         )
-# Get an object's pose in the robot's local cs
+# Interpret a target position from robot lcs to wcs
 def loc2wrld(target_pos, target_ort, transform=wrld_trnsfm):
     return pbt.multiplyTransforms(
         transform[0], transform[1], target_pos, target_ort
