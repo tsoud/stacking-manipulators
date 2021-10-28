@@ -9,10 +9,6 @@ instead.
 '''
 # --------------------------------------------------------------------------- #
 
-import spatialmath.base as smb
-from spatialmath import SE3, SO3
-from spatialmath import UnitQuaternion as UQ
-
 import os
 import time
 from collections import namedtuple
