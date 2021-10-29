@@ -18,22 +18,6 @@ import numpy as np
 import pybullet as pbt
 import pybullet_data
 
-def deg_2_rad(angle):
-    return np.pi * (angle / 180.)
-
-def rad_2_deg(angle):
-    return 180. * (angle / np.pi)
-
-def unnamed_func(rotations:np.array, tol=5, unit='deg'):
-    if unit == 'deg':
-        tol = deg_2_rad(tol)
-    rounded = np.rint(rotations)
-    low, hi = (rounded - tol), (rounded + tol)
-    if np.all(rotations > low) and np.all(rotations < hi):
-        return rounded
-    return rotations
-    
-
 # Give the physics simulation client a name.
 # For example: sim1, sim2, ... and so on for multiple simulations.
 # NOTE: This isn't necessary when running one simulation, but is used here
