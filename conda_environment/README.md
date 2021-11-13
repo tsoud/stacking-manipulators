@@ -17,7 +17,7 @@ conda env create --file robotics_conda_env.yml
 
 <br><h3><u>Setup guide for Mac</u></h3>
 
-Conda environment does not work properly on Mac BigSur version. To get the conda setup properly, following the following steps:
+Conda environment does not work properly on Mac BigSur version. To get the conda setup, following the following steps:
 
 1. Test conda on your terminal. If it returns an error `conda command not found`, moving to step 2. Otherwise, just need to change the directory in the yml file run the command create env above.
 ```
@@ -40,7 +40,7 @@ conda env list
 - Once done, you can navigate to PyBullet_Test folder and try to run some python file there. If it throws any error related to `package could not found`, just need to do either of the following command.
 
 ```
-conda install packagename
-pip3 install packageName
+conda install <packageName>
+pip3 install <packageName>
 ```
 
