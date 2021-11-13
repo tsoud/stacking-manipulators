@@ -3,7 +3,7 @@ Author: Tamer Abousoud<br><br>
 
 This folder contains debugging scripts for visualizing and interacting with the robotic arm in PyBullet with GUI enabled. To run a script, open a terminal, activate a conda environment (or any virtual environment) with PyBullet and run:
 ```
-python script_name.py
+python <script_name>.py
 ```
 An interactive GUI screen will open allowing you to interact directly with the robot.<br>
 
