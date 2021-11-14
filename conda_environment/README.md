@@ -16,6 +16,7 @@ conda env create --file robotics_conda_env.yml
 - The conda environment I'm using is constantly changing, so the YAML in this folder may be a bit outdated. You may get an `ImportError` or `ModuleNotFoundError` when trying to run code in this repo and need to manually install some packages. I will try to update the YAML (or add new ones) whenever there are significant changes or updates to the environment. 
 
 <br><h3><u>Setup guide for Mac</u></h3>
+Author: Tam Nguyen<br><br>
 
 Conda environment does not work properly on Mac BigSur version. To get the conda setup, following the following steps:
 
