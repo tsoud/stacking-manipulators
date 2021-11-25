@@ -272,7 +272,7 @@ def grasp_object(target_obj_ID,
     
     for step in range(1, grip_increments):
         grip_force = get_grip_force()
-        if np.all(grip_force <= required_force):
+        if np.any(grip_force < required_force):
             set_grip_actuators(
                 grip_steps[step], [force_limit, force_limit]
                 )
