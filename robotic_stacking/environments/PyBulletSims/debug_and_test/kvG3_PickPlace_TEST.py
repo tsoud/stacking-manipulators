@@ -2,10 +2,8 @@
 
 # --------------------------------------------------------------------------- #
 '''
-A planned pick and place script with a single arm using IK positioning.
-Robot base is offset from the world origin and arm LCS is not aligned with
-global CS. Movement and object locations are defined in the arm's local CS
-instead.
+A planned pick and place script with a single arm that purely uses IK. 
+This script can be used for testing.
 '''
 # --------------------------------------------------------------------------- #
 
@@ -29,7 +27,7 @@ pbt.setAdditionalSearchPath(pybullet_data.getDataPath())
 pbt.setGravity(gravX=0, gravY=0, gravZ=-9.8, physicsClientId=sim1)
 
 # Make sure paths to environment objects are correct
-resources_path = Path('../resources/').resolve()
+resources_path = Path('../../assets/').resolve()
 robot_arm = os.path.join(resources_path, 'KinovaG3_7DOF_HandEgrip.urdf')
 cube = os.path.join(resources_path, 'small_cube.urdf')
 target_cube = os.path.join(resources_path, 'fake_cube.urdf')
@@ -60,26 +58,11 @@ target_location_ID = pbt.loadURDF(
 )
 
 # Load the robot model.
-random_base_pose = True
-if random_base_pose:
-    arm_base_pos = np.zeros((3,))
-    arm_base_pos[0] = np.random.uniform(-0.1, 0.1)
-    arm_base_pos[1] = np.random.uniform(-0.1, 0.1)
-    angle = np.random.uniform(-(np.pi / 2), np.pi / 2)
-    arm_base_ort = pbt.getQuaternionFromAxisAngle([0, 0, 1], angle)
-    robot_arm_ID = pbt.loadURDF(
-        robot_arm,
-        useFixedBase=True,
-        basePosition=arm_base_pos, 
-        baseOrientation=arm_base_ort, 
-        flags=(pbt.URDF_USE_SELF_COLLISION)
-    )
-else:
-    robot_arm_ID = pbt.loadURDF(
-        robot_arm,
-        useFixedBase=True,
-        flags=(pbt.URDF_USE_SELF_COLLISION)
-    )
+robot_arm_ID = pbt.loadURDF(
+    robot_arm,
+    useFixedBase=True,
+    flags=(pbt.URDF_USE_SELF_COLLISION)
+)
 
 # Read information from the robot URDF description and get end link
 n_joints = pbt.getNumJoints(robot_arm_ID)
@@ -119,81 +102,16 @@ pbt.enableJointForceTorqueSensor(
 
 
 # --------------------------------------------------------------------------- #
-# Functions for resolving coordinate transformations
-
-def getRobotBasePose(robot=robot_arm_ID, AxisAngle=False):
-    pose = pbt.getBasePositionAndOrientation(robot)
-    posn, ornt = pose[0], pose[1]
-    if AxisAngle:
-        ornt = pbt.getAxisAngleFromQuaternion(ornt)
-    return posn, ornt
-
-
-base_pos, base_ort = getRobotBasePose()
-lcs_transform = pbt.invertTransform(base_pos, base_ort)
-wcs_transform = (base_pos, base_ort)
-
-# Get a target world pose in robot's local cs
-def wcs_2_lcs(target_pos, target_ort, transform=lcs_transform):
-    return pbt.multiplyTransforms(
-        transform[0], transform[1], target_pos, target_ort
-        )
-
-# Interpret a target position from robot lcs to wcs
-def lcs_2_wcs(target_pos, target_ort, transform=wcs_transform):
-    return pbt.multiplyTransforms(
-        transform[0], transform[1], target_pos, target_ort
-        )
-
-
-def get_object_pose(object_ID, 
-                    clearances=np.array([0., 0., 0.]), 
-                    offsets=np.array([0., 0., 0.]), 
-                    CS='local'):
-    '''
-    Returns the position and orientation of an object in the environment.
-    ---
-    CS: Coordinate system to use; 'local' returns values in robot's local CS,
-        'world' is the global CS.
-    clearances: x, y, z clearances to maintain from object to avoid collisions
-    offsets: np array of x, y, z offset values to adjust the gripper fingers 
-        with respect to the object being grasped.
-    '''
-    assert CS in ['local', 'world'], \
-        f"`CS` parameter only takes 'local' or 'world' as arguments."
-    object_posn, object_ornt = pbt.getBasePositionAndOrientation(object_ID)
-    object_posn = np.array(object_posn) + clearances + offsets
-    if CS == 'local':
-        object_posn, object_ornt = wcs_2_lcs(object_posn, object_ornt)
-    object_posn = np.asarray(object_posn, dtype=float)
-    object_ornt = np.asarray(object_ornt, dtype=float)
-
-    return object_posn, object_ornt
-
-
+# Functions to control pick and place actions 
 # --------------------------------------------------------------------------- #
-# Functions to control pick and place actions
-# --------------------------------------------------------------------------- #
+
 
 def get_target_link_state(robot_arm_ID=robot_arm_ID,
-                          target_link_id=target_link_id,
-                          CS='local'):
-    '''
-    Returns the position and orientation of the robot's target link. The target 
-    link is a "virtual" link that represents the part of the gripper that 
-    should be aligned with a target object for proper gripping.
-    ---
-    CS: Coordinate system to use; 'local' returns values in robot's local CS,
-        'world' is the global CS.
-    '''
-    assert CS in ['local', 'world'], \
-        f"`CS` parameter only takes 'local' or 'world' as arguments."
+                          target_link_id=target_link_id):
     target_link_state = pbt.getLinkState(robot_arm_ID, target_link_id)[:2]
     # Return position and orientation
     position = target_link_state[0]
     orientation = target_link_state[1]
-    if CS == 'local':
-        position, orientation = wcs_2_lcs(position, orientation)
 
     return np.asarray(position), np.asarray(orientation)
 
@@ -204,8 +122,7 @@ def grip_finger_positions(grip_ids=grip_ids, bodyID=robot_arm_ID):
     return np.asarray([states[0][0], states[1][0]])
 
 
-def get_arm_actuator_settings(target_position, target_orientation, 
-                              use_robot_LCS=True, 
+def get_arm_actuator_settings(target_position, target_orientation,
                               robot_arm_ID=robot_arm_ID,
                               target_id=target_link_id,
                               damping=jt_dmpg):
@@ -214,20 +131,7 @@ def get_arm_actuator_settings(target_position, target_orientation,
     inverse kinematics. The IK solver returns settings for all degrees 
     of freedom including gripper joints. Since gripper joints are actuated 
     independently, the last two values are removed from the result array.
-    ---
-    target_position: target position in robot local CS or world CS
-    target_orientation: target orientation in robot local CS or world CS
-    use_robot_LCS: (default == True); the target pose is given in the robot's 
-        local coordinate system (LCS). In this case, a conversion is applied 
-        to the target position and orientation to transform them into world 
-        coordinates for the IK solver. 
-        If false, the given target position and orientation are assumed to be 
-        in world coordinates and directly given to the solver.
     '''
-    if use_robot_LCS:
-        target_position, target_orientation \
-            = lcs_2_wcs(target_position, target_orientation)
-
     joint_angles = pbt.calculateInverseKinematics(
         bodyUniqueId=robot_arm_ID,
         endEffectorLinkIndex=target_id,
@@ -273,9 +177,16 @@ def set_grip_actuators(grip_position_settings, forces,
     )
 
 
+def get_object_pose(object_ID):
+    object_pose = pbt.getBasePositionAndOrientation(object_ID)
+    object_position = np.asarray(object_pose[0], dtype=float)
+    object_orientation = np.asarray(object_pose[1], dtype=float)
+    return object_position, object_orientation
+
+
 def move_to_target(target_position, target_orientation,
-                #    clearances=np.array([0., 0., 0.]), 
-                #    offsets=np.array([0., 0., 0.]), 
+                   clearances=np.array([0., 0., 0.]), 
+                   offsets=np.array([0., 0., 0.]), 
                    num_steps=100,
                    robot_arm_ID=robot_arm_ID,
                    target_link_id=target_link_id):
@@ -290,10 +201,8 @@ def move_to_target(target_position, target_orientation,
     num_steps: number of intermediate steps to smooth path
     '''
     done = False
-    # target_position = target_position + clearances + offsets
-    curr_posn, curr_ornt = get_target_link_state(
-        robot_arm_ID, target_link_id, 
-        )
+    target_position = target_position + clearances + offsets
+    curr_posn, curr_ornt = get_target_link_state(robot_arm_ID, target_link_id)
     translation_stops = np.linspace(
         curr_posn, target_position,
         num=num_steps,
@@ -450,6 +359,7 @@ pbt.resetDebugVisualizerCamera(
     cameraTargetPosition=[0.25, 0, 0]
 )
 
+
 pbt.configureDebugVisualizer(pbt.COV_ENABLE_SHADOWS, 0)
 
 # --------------------------------------------------------------------------- #
@@ -463,32 +373,13 @@ pbt.setJointMotorControlArray(
 )
 
 # Use IK to return to "home" position when done
-home_posn_w, home_ornt_w = pbt.getLinkState(robot_arm_ID, target_link_id)[:2]
-# Get coordinates of target link in robot lcs
-home_posn_loc, home_ornt_loc = wcs_2_lcs(home_posn_w, home_ornt_w)
-home_ornt_w = pbt.getEulerFromQuaternion(home_ornt_w)
-home_ornt_l_e = pbt.getEulerFromQuaternion(home_ornt_loc)
-print('\nPose of target link in WCS:', home_posn_w, home_ornt_w, '\n')
-print('\nPose of target link in LCS:', home_posn_loc, home_ornt_l_e, '\n')
+home_pose = pbt.getLinkState(robot_arm_ID, target_link_id)
 
 clearances = np.array([0., 0., 0.1])
-offsets = np.array([0., 0., 0.025])
-# Position above cube
-above_obj_posn, above_obj_ornt = get_object_pose(
-    cube_ID, clearances=clearances,
-    )
-# Position at cube
-at_obj_posn, at_obj_ornt = get_object_pose(cube_ID, offsets=offsets)
-# Position above target
-above_target_posn, above_target_ornt = get_object_pose(
-    target_location_ID, clearances=clearances
-    )
-# Position at target
-at_target_posn, at_target_ornt = get_object_pose(
-    target_location_ID, offsets=offsets
-    )
-# Back at start position
-home_posn_loc, home_ornt_loc = np.array(home_posn_loc), np.array(home_ornt_loc)
+offsets = np.array([0., 0., 0.02])
+start_target_posn, start_target_ornt = get_object_pose(cube_ID)
+end_target_posn, end_target_ornt = get_object_pose(target_location_ID)
+home_posn, home_ornt = np.array(home_pose[0]), np.array(home_pose[1])
 
 step_count = 0
 start_target_reached = False
@@ -517,8 +408,9 @@ while True:
     if start_action:
         # Position robot end above cube
         start_target_reached = move_to_target(
-            above_obj_posn, above_obj_ornt,
-            num_steps=300,
+            start_target_posn, start_target_ornt,
+            clearances=clearances,
+            num_steps=200,
             target_link_id=target_link_id
         )
         print('\nstart_target_reached:', start_target_reached, '\n')
@@ -526,8 +418,9 @@ while True:
     if start_target_reached:
         # Lower gripper to cube level
         ready_to_grasp = move_to_target(
-            at_obj_posn, at_obj_ornt,
-            num_steps=150, 
+            start_target_posn, start_target_ornt,
+            offsets=offsets, 
+            num_steps=100, 
             target_link_id=target_link_id
             )
         print('\nready_to_grasp:', ready_to_grasp, '\n')
@@ -540,8 +433,9 @@ while True:
     if item_grasped:
         # Move back to the position above the cube
         item_picked = move_to_target(
-            above_obj_posn, above_obj_ornt,
-            num_steps=150,
+            start_target_posn, start_target_ornt,
+            clearances=clearances,
+            num_steps=100,
             target_link_id=target_link_id
             )
         print('\nitem_picked:', item_picked, '\n')
@@ -550,8 +444,9 @@ while True:
         time.sleep(1)
         # Move to target location and position end slightly above
         end_target_reached = move_to_target(
-            above_target_posn, above_target_ornt, 
-            num_steps=500, 
+            end_target_posn, end_target_ornt, 
+            clearances=clearances, 
+            num_steps=300, 
             target_link_id=target_link_id
             )
         print('\nend_target_reached:', end_target_reached, '\n')
@@ -560,9 +455,11 @@ while True:
         time.sleep(1)
         # Lower gripper to place cube
         ready_to_release = move_to_target(
-            at_target_posn, at_target_ornt, 
+            end_target_posn, end_target_ornt, 
             # small clearance to avoid floor collision
-            num_steps=150, 
+            clearances=np.array([0., 0., 2.e-3]), 
+            offsets=offsets, 
+            num_steps=100, 
             target_link_id=target_link_id
             )
         print('\nready_to_release:', ready_to_release, '\n')
@@ -575,8 +472,9 @@ while True:
     if item_released:
         # Move gripper away
         item_placed = move_to_target(
-            above_target_posn, above_target_ornt, 
-            num_steps=150, 
+            end_target_posn, end_target_ornt, 
+            clearances=clearances, 
+            num_steps=100, 
             target_link_id=target_link_id
             )
         print('\nitem_placed:', item_placed, '\n')
@@ -585,8 +483,8 @@ while True:
         # Return to home position
         time.sleep(1)
         returned_home = move_to_target(
-            home_posn_loc, home_ornt_loc, 
-            num_steps=300, 
+            home_posn, home_ornt, 
+            num_steps=200, 
             target_link_id=target_link_id
             )
         print('\nreturned_home:', returned_home, '\n')
@@ -597,3 +495,4 @@ while True:
             pbt.stepSimulation(sim1)
             time.sleep(1. / 240.)
         pbt.disconnect()
+    

@@ -28,7 +28,7 @@ pbt.setAdditionalSearchPath(pybullet_data.getDataPath())
 pbt.setGravity(gravX=0, gravY=0, gravZ=-9.8, physicsClientId=sim1)
 
 # Make sure paths to environment objects are correct
-resources_path = Path('../resources/').resolve()
+resources_path = Path('../../assets').resolve()
 robot_arm = os.path.join(resources_path, 'KinovaG3_7DOF_HandEgrip.urdf')
 cube = os.path.join(resources_path, 'small_cube.urdf')
 

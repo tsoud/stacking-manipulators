@@ -3,3 +3,7 @@
 **/international
 settings.json
 target_test.py
+env_setup.py
+batchsim*
+combined.urdf
+*.pyc
