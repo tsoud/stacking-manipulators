@@ -4,6 +4,9 @@
 settings.json
 target_test.py
 env_setup.py
+env_setup2.py
 batchsim*
 combined.urdf
 *.pyc
+IK_setup1.py
+dummy.py
