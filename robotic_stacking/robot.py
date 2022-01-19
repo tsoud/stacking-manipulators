@@ -385,7 +385,6 @@ class robotic_arm_controller:
         -------
         `True` if self-collision is detected.
         """
-        colliding_links = np.zeros(len(self._robot.links), dtype=bool)
         self_collision = self._sim.getContactPoints(
             bodyA=self._robot_id, bodyB=self._robot_id
         )
