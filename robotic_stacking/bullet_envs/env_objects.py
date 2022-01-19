@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from collections import namedtuple
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import pybullet as pbt
@@ -138,8 +138,8 @@ class small_cube:
         # tie to simulation
         self._sim = simulation
         # adjust the position for cube height
-        self.ht_adj = self.dimensions[-1]/2
-        self._init_pos = (position[0], position[1], position[2] + self.ht_adj)
+        self.ht_adj = self.dimensions[-1]/2   
+        self._init_pos = self.adjust_ht(position)
         # self._init_ort = utils.quaternion_from_RxRyRz(*orientation)
         self._init_ort = orientation
         # place in environment
@@ -181,6 +181,12 @@ class small_cube:
     def dimensions(self):
         return self._dimensions
 
+    def adjust_ht(self, position:Iterable):
+        if position[-1] > 0:
+            return position
+        else:
+            return (position[0], position[1], position[2] + self.ht_adj)
+
     def get_pose(self) -> Tuple[np.array, np.array]:
         """Returns current position and orientation"""
         pose = self._sim.getBasePositionAndOrientation(self._env_id)
@@ -200,9 +206,7 @@ class small_cube:
             pos = self._init_pos
         else:
             # remember to adjust for object height
-            pos = (
-                new_position[0], new_position[1], new_position[2] + self.ht_adj
-            )
+            pos = self.adjust_ht(new_position)
         ort = self._init_ort if new_orientation is None else new_orientation
         self._sim.resetBasePositionAndOrientation(self._env_id, pos, ort)
         self._init_pos = pos
@@ -293,6 +297,12 @@ class virtual_cube(virtual_object):
     @property
     def dimensions(self):
         return self._dimensions
+
+    def adjust_ht(self, position:Iterable):
+        if position[-1] > 0:
+            return position
+        else:
+            return (position[0], position[1], position[2] + self.ht_adj)
 
     def get_pose(self) -> Tuple[np.array, np.array]:
         """Returns current position and orientation"""
