@@ -87,7 +87,7 @@ class single_agent_env(simulation):
         # define gravity
         self._sim.setGravity(*gravity)
         # add a floor to the simulation
-        self._sim.loadURDF("plane.urdf")
+        self._floor_surface = self._sim.loadURDF("plane.urdf")
         # track robot information
         self._robot = None
         self._robot_id = None
