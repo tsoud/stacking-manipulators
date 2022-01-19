@@ -294,6 +294,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             'grip_contact_w_cubes': self._grip_touching_cube, 
             'grip_force': self._grip_force, 
             'self_collision': self._self_collision, 
+            'floor_collision': self._floor_collision, 
             'cube_point_locations': self._cube_point_locations, 
             'target_point_locations': self._target_point_locations, 
             'cubes_aligned_with_targets': self._cubes_aligned_w_targets, 
@@ -493,9 +494,16 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             )
         return target_intersection_pts, targets_aligned
 
-    def episode_timed_out(self):
+    def detect_floor_collision(self) -> bool:
+        floor_collision = self._sim.getContactPoints(
+            bodyA=self._robot_id, bodyB=self._floor_surface
+        )
+        return True if len(floor_collision) > 0 else False
+
+    def episode_timed_out(self) -> bool:
         if self._episode_step_count == self._episode_step_limit:
             return True
+        return False
 
     def reset(self):
         if self._robot_pose_init in ('specified', 'origin'):
@@ -556,6 +564,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         )
         self._grip_force = self.arm_control.get_grip_force()
         self._self_collision = self.arm_control.detect_self_collision()
+        self._floor_collision = self.detect_floor_collision()
         self._cube_point_locations = self.get_cube_face_centroid_coords()
         self._target_point_locations = self.target_locators
         _, self._cubes_aligned_w_targets = (self.check_target_alignment())
