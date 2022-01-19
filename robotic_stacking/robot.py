@@ -388,7 +388,7 @@ class robotic_arm_controller:
         self_collision = self._sim.getContactPoints(
             bodyA=self._robot_id, bodyB=self._robot_id
         )
-        return True if self_collision else False
+        return True if len(self_collision) > 0 else False
 
     def get_link_poses(self, links:Optional[
                                 Union[List[int], Tuple[int], np.array]
