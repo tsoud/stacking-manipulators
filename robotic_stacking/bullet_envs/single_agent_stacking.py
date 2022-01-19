@@ -573,8 +573,3 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         if self._episode_done:
             self.reset()
 
-random_actions = np.random.uniform(
-    [-0.05, -0.05, -0.05, -0.05*np.pi, -0.05*np.pi, -0.05*np.pi, -0.015], 
-    [0.05, 0.05, 0.05, 0.05*np.pi, 0.05*np.pi, 0.05*np.pi, 0.015], 
-    size = (100, 7)
-)
