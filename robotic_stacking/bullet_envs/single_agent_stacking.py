@@ -2,14 +2,14 @@ import time
 from abc import ABC, abstractmethod
 from collections import defaultdict, namedtuple
 from dataclasses import dataclass, field
-from typing import Any, Iterable, List, Literal, Optional, Sequence, Tuple, Union
+from typing import Callable, Iterable, List, Literal, Optional, Tuple, Union
 
 import numpy as np
 import pybullet as pbt
 import pybullet_data
 import quaternionic as qtr
+from dataclasses import dataclass
 from pybullet_utils import bullet_client as bc
-from typing import Any, Iterable, List, Optional, Tuple, Union
 
 from robotic_stacking import assets, robot, utils
 from robotic_stacking.bullet_envs import env_objects, env_utils
@@ -87,6 +87,8 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
     mask_actions: Use a boolean mask to restrict available actions. 
     track_pose_error: keep track of error between desired and actual 
         end-effector pose.
+    reward_function: reward function for calculating rewards. If none 
+        is given, a default calculation is used.
     """
     def __init__(self, 
                  robot_pose_initialization:
@@ -111,7 +113,8 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
                  simulation_steps_per_sec:int=240, 
                  episode_time_limit:int=120, 
                  mask_actions:Optional[Iterable]=None, 
-                 track_pose_error:bool=True):
+                 track_pose_error:bool=True, 
+                 reward_function:Optional[Callable]=None):
         # set up robot pose
         self._robot_pose_init=robot_pose_initialization
         if self._robot_pose_init == 'random':
@@ -186,8 +189,10 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             )
         self.target_cube_ort = target_cube_orientation
         # initialize time step parameters
+        self.sim_steps_per_sec = simulation_steps_per_sec
+        self.transition_steps_per_sec = n_transition_steps_per_sec
         self._n_substeps = env_utils.calculate_simulation_substeps(
-            n_transition_steps_per_sec, simulation_steps_per_sec
+            self.transition_steps_per_sec, self.sim_steps_per_sec
         )
         self._episode_step_limit = episode_time_limit*simulation_steps_per_sec
         # environment parameters
@@ -203,12 +208,13 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
                 )
             mask_actions = np.array(mask_actions, dtype=bool)
         self._available_actions = mask_actions.nonzero()
-        # initialize pose error tracking
+        # initialize error tracking
         self._track_pose_error = track_pose_error
+        # reward function
+        self.reward_fn = reward_function
         
     def make(self):
         """Create the environment."""
-
         # initialize simulator
         super().__init__(use_GUI=self._set_GUI, gravity=self._set_gravity)
         # add robot
@@ -252,6 +258,9 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             )
         self._episode_done = False
         self._episode_step_count = 0
+        self._num_episodes_finished = 0
+        self._episode_reward = 0
+        self._total_reward = 0
         # start tracking state observations
         self.process_state()
 
@@ -287,7 +296,11 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             'self_collision': self._self_collision, 
             'cube_point_locations': self._cube_point_locations, 
             'target_point_locations': self._target_point_locations, 
-            'cubes_aligned_with_targets': self._cubes_aligned_w_targets
+            'cubes_aligned_with_targets': self._cubes_aligned_w_targets, 
+            'episode_done': self._episode_done, 
+            'episode_reward': self._episode_reward,
+            'episode_count': self._num_episodes_finished + 1, 
+            'total_reward': self._total_reward
         }
 
     def set_cube_poses(self, 
@@ -520,7 +533,10 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
                 cube._init_ort[3]
             )
             self.reset_env_object(cube_id, new_cube_pos, new_cube_ort)
+        self.process_state()
         self._episode_step_count = 0
+        self._episode_reward = 0
+        self._num_episodes_finished += 1
 
     def process_state(self):
         self._current_ee_pos, self._current_ee_ort = (
@@ -544,6 +560,21 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self._target_point_locations = self.target_locators
         _, self._cubes_aligned_w_targets = (self.check_target_alignment())
 
+    def calculate_reward(self, **kwargs):
+        if self.reward_fn:
+            reward = self.reward_fn(**kwargs)
+        else:
+            if self._track_pose_error:
+                pose_error_penalty = env_utils.apply_pose_penalty(
+                    self._step_pose_error[0], self._step_pose_error[1]
+                )
+            reward = (
+                -1/(self.transition_steps_per_sec)
+                + np.sum(self._cubes_aligned_w_targets)
+                - pose_error_penalty
+            )
+        return reward
+
     def run_actions(self, actions:np.array, sleep:Optional[float]=None):
         """ 
         Run the given actions and step through the episode.
@@ -565,11 +596,20 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             )
         )
         for setting in sequence:
+            self._episode_step_count += 1
             self.arm_control.set_actuators(setting)
             self.simulation_step(sleep=sleep)
-            self._episode_step_count += 1
-            self.process_state()
+        self.process_state()
+        self._episode_reward += self.calculate_reward()
+        self._total_reward += self._episode_reward
         self._episode_done = self.episode_timed_out()
         if self._episode_done:
             self.reset()
 
+    def close(self):
+        self.process_state()
+        self._connection.close()
+
+# actions_rand = np.random.uniform([-0.1, -0.1, -0.1, -0.1*np.pi, -0.01], [0.1, 0.1, 0.1, 0.1*np.pi, 0.01], size=(100, 5))
+
+# test_env = single_kvG3_7DH_stacking_env(use_GUI=True, mask_actions=[1, 1, 1, 0, 0, 1, 1], episode_time_limit=30)
