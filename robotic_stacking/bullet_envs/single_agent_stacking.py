@@ -114,6 +114,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
                  episode_time_limit:int=120, 
                  mask_actions:Optional[Iterable]=None, 
                  track_pose_error:bool=True, 
+                 apply_collision_penalties:bool=True, 
                  reward_function:Optional[Callable]=None):
         # set up robot pose
         self._robot_pose_init=robot_pose_initialization
@@ -210,6 +211,8 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self._available_actions = mask_actions.nonzero()
         # initialize error tracking
         self._track_pose_error = track_pose_error
+        # use collision penalties
+        self.apply_collision_penalties = apply_collision_penalties
         # reward function
         self.reward_fn = reward_function
         
@@ -251,11 +254,15 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self.__action_dXdYdZ = self.__action_array[:3]
         self.__action_RxRyRz = self.__action_array[3:6]
         self.__action_grips = self.__action_array[-1]
-        # track pose accuracy with every step
+        # track pose accuracy with every transition step
         if self._track_pose_error:
             self.__step_pos_goal, self.__step_ort_goal = (
                 self.arm_control.get_end_eff_pose()
             )
+        # track arm collisions with itself or the floor
+        self._collision_counter_self = 0
+        self._collision_counter_floor = 0
+        # episode data
         self._episode_done = False
         self._episode_step_count = 0
         self._num_episodes_finished = 0
@@ -295,6 +302,8 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             'grip_force': self._grip_force, 
             'self_collision': self._self_collision, 
             'floor_collision': self._floor_collision, 
+            'self_collision_intensity': self._collision_intensity_self, 
+            'floor_collision_intensity': self._collision_intensity_floor, 
             'cube_point_locations': self._cube_point_locations, 
             'target_point_locations': self._target_point_locations, 
             'cubes_aligned_with_targets': self._cubes_aligned_w_targets, 
@@ -544,6 +553,8 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self.process_state()
         self._episode_step_count = 0
         self._episode_reward = 0
+        self._collision_counter_self = 0
+        self._collision_counter_floor = 0
         self._num_episodes_finished += 1
 
     def process_state(self):
@@ -565,6 +576,14 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self._grip_force = self.arm_control.get_grip_force()
         self._self_collision = self.arm_control.detect_self_collision()
         self._floor_collision = self.detect_floor_collision()
+        # collision intensity = 
+        # (number of collisions per transition)/(number of sim substeps)
+        self._collision_intensity_self = (
+            self._collision_counter_self/self._n_substeps
+        )
+        self._collision_intensity_floor = (
+            self._collision_counter_floor/self._n_substeps
+        )
         self._cube_point_locations = self.get_cube_face_centroid_coords()
         self._target_point_locations = self.target_locators
         _, self._cubes_aligned_w_targets = (self.check_target_alignment())
@@ -576,11 +595,21 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             if self._track_pose_error:
                 pose_error_penalty = env_utils.apply_pose_penalty(
                     self._step_pose_error[0], self._step_pose_error[1]
-                )
+                )*(-1)
+            else:
+                pose_error_penalty = 0
+            if self.apply_collision_penalties:
+                collision_penalties  = (
+                    0.5*self._collision_intensity_self 
+                    + 0.5*self._collision_intensity_floor
+                )*(-1)
+            else:
+                collision_penalties = 0
             reward = (
-                -1/(self.transition_steps_per_sec)
+                (-1)/(self.transition_steps_per_sec)
                 + np.sum(self._cubes_aligned_w_targets)
-                - pose_error_penalty
+                + pose_error_penalty
+                + collision_penalties
             )
         return reward
 
@@ -604,13 +633,18 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
                 num_steps=self._n_substeps
             )
         )
+        self._collision_counter_self = 0
+        self._collision_counter_floor = 0
         for setting in sequence:
-            self._episode_step_count += 1
+            self._episode_step_count += 1            
             self.arm_control.set_actuators(setting)
             self.simulation_step(sleep=sleep)
+            self._collision_counter_self += self.arm_control.detect_self_collision()
+            self._collision_counter_floor += self.detect_floor_collision()
         self.process_state()
-        self._episode_reward += self.calculate_reward()
-        self._total_reward += self._episode_reward
+        reward = self.calculate_reward()
+        self._episode_reward += reward
+        self._total_reward += reward
         self._episode_done = self.episode_timed_out()
         if self._episode_done:
             self.reset()
@@ -619,6 +653,3 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self.process_state()
         self._connection.close()
 
-# actions_rand = np.random.uniform([-0.1, -0.1, -0.1, -0.1*np.pi, -0.01], [0.1, 0.1, 0.1, 0.1*np.pi, 0.01], size=(100, 5))
-
-# test_env = single_kvG3_7DH_stacking_env(use_GUI=True, mask_actions=[1, 1, 1, 0, 0, 1, 1], episode_time_limit=30)
