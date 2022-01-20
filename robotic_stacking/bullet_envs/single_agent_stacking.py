@@ -1,19 +1,10 @@
-import time
-from abc import ABC, abstractmethod
-from collections import defaultdict, namedtuple
-from dataclasses import dataclass, field
-from typing import Callable, Iterable, List, Literal, Optional, Tuple, Union
+from typing import Callable, Iterable, Literal, Optional
 
 import numpy as np
-import pybullet as pbt
-import pybullet_data
 import quaternionic as qtr
-from dataclasses import dataclass
-from pybullet_utils import bullet_client as bc
 
-from robotic_stacking import assets, robot, utils
-from robotic_stacking.bullet_envs import env_objects, env_utils
-from robotic_stacking.pybullet_connections import multiclient_server, single_connection
+from robotic_stacking import robot, utils
+from robotic_stacking.bullet_envs import env_utils
 from robotic_stacking.bullet_envs.env_objects import small_cube, virtual_cube
 from robotic_stacking.bullet_envs.base_simulations import single_agent_env
 
@@ -22,8 +13,9 @@ from robotic_stacking.bullet_envs.base_simulations import single_agent_env
 # target formation.
 # ----------------------------------------------------------------------------
 
+
 class single_kvG3_7DH_stacking_env(single_agent_env):
-    """ 
+    """
     Single agent stacking environment with a Kinova Gen3 HandE robot.
 
     The robot arm has to pick from cubes scattered randomly around its 

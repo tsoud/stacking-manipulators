@@ -1,19 +1,10 @@
-import xml.etree.ElementTree as ET
-from abc import ABC, abstractmethod
-from collections import namedtuple
 from dataclasses import dataclass, field
 from itertools import product
-from typing import Any, Iterable, List, Optional, Tuple, Union
+from typing import Iterable, Tuple
 
 import numpy as np
-import pybullet as pbt
-import pybullet_data
-import quaternionic as qtr
-import spatialmath.base as smb
-from pybullet_utils import bullet_client as bc
-from spatialmath import SE3
 
-from robotic_stacking import assets, utils
+from robotic_stacking import utils
 
 # ----------------------------------------------------------------------------
 # Utility functions and classes for setting up and interacting with a 
@@ -36,7 +27,7 @@ def calculate_simulation_substeps(transition_steps_per_sec:int,
     return PyBullet_timestep // transition_steps_per_sec
 
 
-def check_interferences(simulation, env_object_ids):
+def check_interferences(simulation, env_object_ids) -> set:
     """Check for interfering objects in the simulation."""
     simulation.performCollisionDetection()
     contact_pts = simulation.getContactPoints()
@@ -53,7 +44,7 @@ def check_interferences(simulation, env_object_ids):
 def target_aligned(target_points, 
                    rays_from, rays_to, 
                    target_ID, 
-                   tolerance=1e-3):
+                   tolerance=1e-3) -> bool:
     """
     Check if an item is aligned with a target using a ray test.
 
@@ -71,9 +62,9 @@ def target_aligned(target_points,
     --------
     `True` if an item is aligned with the target.
     """
-    ray_hits = get_points_from_rays(rays_from, rays_to, target_ID)
+    ray_hits = utils.get_points_from_rays(rays_from, rays_to, target_ID)
     ray_hits = ray_hits.view('float').reshape(target_points.shape)
-    
+
     return np.allclose(target_points, ray_hits, atol=tolerance)
 
 
@@ -81,8 +72,8 @@ def apply_pose_penalty(position_error:float, orientation_error:float,
                        position_tol:float=1e-3, 
                        orientation_tol:float=0.01*np.pi, 
                        max_position_error:float=0.025, 
-                       position_weight:float=0.5):
-    """ 
+                       position_weight:float=0.5) -> float:
+    """
     Calculate penalty relative to end-effector deviation from goal.
 
     keyword args:
@@ -118,10 +109,11 @@ def apply_pose_penalty(position_error:float, orientation_error:float,
         ort_penalty = 0.
     else:
         ort_penalty = orientation_error / np.pi
-    
+
     return position_weight*pos_penalty + ort_weight*ort_penalty
 
 # ----------------------------------------------------------------------------
+
 
 @dataclass
 class target_formation:
@@ -184,7 +176,7 @@ class target_formation:
     def create_target_formation(self, location_indices:Iterable) -> np.ndarray:
         """
         Get coordinates of the given locations in the target structure.
-        
+
         Returns an array of 3D coordinates corresponding to the given 
         `location_indices`.
         """
@@ -197,7 +189,7 @@ class target_formation:
 def four_corner_structure(world_position:Iterable, 
                           n_cubes:int=8, 
                           cube_spacing:int=2) -> np.ndarray:
-    """ 
+    """
     Define a structure with cubes stacked at four corners.
 
     The four stacks are equal in size and symmetrically placed relative 
@@ -238,7 +230,7 @@ def four_corner_structure(world_position:Iterable,
 
 def simple_pyramid_structure(world_position:Iterable, 
                              level_sizes:Iterable=[3, 2, 1]) -> np.ndarray:
-    """ 
+    """
     Define a pyramid structure.
 
     keyword args:
@@ -264,8 +256,8 @@ def simple_pyramid_structure(world_position:Iterable,
                 [l_idx for l_idx in product(range(size), range(size), [0])]
             ) 
             + np.array(world_position) 
-            + np.array([0., 0., Z_pos]) 
+            + np.array([0., 0., Z_pos])
         )
         target_positions[f'level{level}'] = target_coords
-    
+
     return np.concatenate(list(target_positions.values()))

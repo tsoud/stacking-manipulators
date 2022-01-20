@@ -1,14 +1,10 @@
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from collections import namedtuple
-from typing import Any, Iterable, List, Optional, Tuple, Union
+from typing import Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import pybullet as pbt
-import pybullet_data
-import quaternionic as qtr
-import spatialmath.base as smb
-from pybullet_utils import bullet_client as bc
 from spatialmath import SE3
 
 from robotic_stacking import assets, utils
@@ -19,6 +15,7 @@ from robotic_stacking import assets, utils
 
 # Base Classes
 # ------------
+
 
 class physical_object(ABC):
     """An object with mass and collision properties."""
@@ -32,7 +29,7 @@ class physical_object(ABC):
     def sim(self):
         """Return the simulator where the object is used."""
         pass
-    
+
     @property
     @abstractmethod
     def env_id(self):
@@ -65,7 +62,7 @@ class physical_object(ABC):
 class virtual_object(ABC):
     """
     A virtual object without mass or collision properties.
-    
+
     Virtual objects can be used to identify and locate target poses 
     and check alignment with physical objects. Virtual objects are
     usually stationary.
@@ -106,8 +103,9 @@ class virtual_object(ABC):
 
 # ----------------------------------------------------------------------------
 
+
 class small_cube:
-    """ 
+    """
     A small cube for the robot to manipulate in the environment.
 
     simulation: the PyBullet simulation where the cube will be used.
@@ -119,7 +117,7 @@ class small_cube:
         removal, so object removal is disabled when this option is 
         used.
     """
-    
+
     def __init__(self, 
                  simulation, 
                  position:Union[Tuple, List]=(0., 0., 0.), 
@@ -167,7 +165,7 @@ class small_cube:
     def sim(self):
         """Return the simulator where the object is used."""
         return self._sim
-    
+
     @property
     def env_id(self):
         """Returns the cube's unique ID in the environment."""
@@ -197,7 +195,7 @@ class small_cube:
               new_orientation:Optional[Union[List, Tuple]]=None):
         """
         Reset position and orientation in current environment.
-        
+
         If a new position and/or orientation is given, the cube will 
         reset to the new pose. Otherwise, it will reset to its original 
         pose when first created.
@@ -211,7 +209,7 @@ class small_cube:
         self._sim.resetBasePositionAndOrientation(self._env_id, pos, ort)
         self._init_pos = pos
         self._init_ort = ort
-    
+
     def delete(self) -> bool:
         """Remove the body from the environment."""
         if self._use_maximal:
@@ -227,12 +225,12 @@ class small_cube:
         return utils.get_points_from_rays(
             self.sim, self._rays_from, self._rays_to, self._env_id
         )
-    
+
 
 # ----------------------------------------------------------------------------
 
 class virtual_cube(virtual_object):
-    """ 
+    """
     A virtual cube representing target poses for stacking real cubes.
 
     The virtual cube is stationary.
@@ -242,7 +240,7 @@ class virtual_cube(virtual_object):
         floor) is automatically adjusted for cube height.
     orientation: initial angles (radians) about x, y, z axes.
     """
-    
+
     def __init__(self, 
                  simulation, 
                  position=np.array([0., 0., 0.]), 
@@ -283,7 +281,7 @@ class virtual_cube(virtual_object):
     @property
     def object_type(self):
         return self.__class__.__name__
-    
+
     @property
     def sim(self):
         """Return the simulator where the object is used."""
@@ -314,7 +312,7 @@ class virtual_cube(virtual_object):
               new_orientation:Optional[Union[List, Tuple]]=None):
         """
         Reset position and orientation in current environment.
-        
+
         If a `new_pose` is given, the cube will reset to this new 
         pose. Otherwise, it will reset to its original pose when 
         created.
@@ -330,7 +328,7 @@ class virtual_cube(virtual_object):
         self._sim.resetBasePositionAndOrientation(self._env_id, pos, ort)
         self._init_pos = pos
         self._init_ort = ort
-    
+
     def delete(self):
         """Remove the body from the environment."""
         self._sim.removeBody(self._env_id)

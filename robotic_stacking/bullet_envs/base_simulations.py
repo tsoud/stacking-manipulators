@@ -1,30 +1,24 @@
 import time
 from abc import ABC, abstractmethod
 from collections import defaultdict, namedtuple
-from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
-import numpy as np
-import pybullet as pbt
 import pybullet_data
-from pybullet_utils import bullet_client as bc
 
-
-from robotic_stacking import assets, robot, utils
-from robotic_stacking.bullet_envs import env_objects
-from robotic_stacking.pybullet_connections import multiclient_server, single_connection
-from robotic_stacking.bullet_envs.env_objects import small_cube, virtual_cube
+from robotic_stacking import robot
+from robotic_stacking.pybullet_connections import single_connection
 
 # ----------------------------------------------------------------------------
 # Set up the base PyBullet simulation environment.
 # ----------------------------------------------------------------------------
+
 
 class simulation(ABC):
 
     @abstractmethod
     def __init__(self, connection_type, use_GUI):
         pass
-    
+
     @property
     @abstractmethod
     def sim(self):
@@ -63,12 +57,12 @@ class simulation(ABC):
 # ----------------------------------------------------------------------------
 
 class single_agent_env(simulation):
-    """ 
+    """
     Set up a PyBullet simulation environment with a single robot arm.
 
     The simulation uses only `single_connection()` to connect to the 
     physics server.
-    
+
     keyword args:
     ------------
     use_GUI: run the simulation in a graphics window.
@@ -94,12 +88,12 @@ class single_agent_env(simulation):
         # keep track of initial robot parameters for resetting
         self.__robot_init_params = {}
         self._env_objs = defaultdict(namedtuple)
-    
+
     @staticmethod
     def get_dict_from_repr(repr_text):
         """
         Extract a dict from a robot or other object's __repr__.
-        
+
         Assumes the __repr__ represents a `namedtuple` type, which is 
         the case for any `robot_controller` class.
         """
@@ -114,7 +108,7 @@ class single_agent_env(simulation):
     @property
     def sim_id(self):
         return self._sim_id
-    
+
     @property
     def arm_control(self):
         return self._robot
@@ -126,13 +120,13 @@ class single_agent_env(simulation):
     @property
     def env_object_ids(self):
         return self._env_objs.keys()
-    
+
     def add_robot(self, 
                   robot_controller=robot.kvG3_7_HdE_control, 
                   base_position:Union[Tuple, List]=(0., 0., 0.), 
                   base_orientation:Union[Tuple, List]=(0., 0., 0., 1.), 
                   controller_kwargs:Optional[dict]=None):
-        """ 
+        """
         Add a robot to the simulation.
 
         keyword args:
@@ -168,7 +162,7 @@ class single_agent_env(simulation):
     def reset_robot(self, 
                     new_position:Optional=None, 
                     new_orientation:Optional=None):
-        """ 
+        """
         Reset the robot in the current environment.
 
         This function simulates a robot reset by overwriting the 
@@ -195,11 +189,11 @@ class single_agent_env(simulation):
             base_position=base_pos, 
             base_orientation=base_ort, 
             controller_kwargs=controller_kwargs)
-    
+
     def add_env_object(self, env_object, 
                        position, orientation, 
                        object_kwargs:Optional[dict]=None):
-        """ 
+        """
         Add a non-robot object to the simulation.
 
         keyword args:
@@ -226,7 +220,7 @@ class single_agent_env(simulation):
     def reset_env_object(self, env_obj_id, 
                          new_position:Optional=None, 
                          new_orientation:Optional=None):
-        """ 
+        """
         Reset an environment object.
 
         The objects forces and all related dynamics are removed. If a 
@@ -236,9 +230,9 @@ class single_agent_env(simulation):
         """
         env_obj = self._env_objs.get(env_obj_id)
         env_obj.reset(new_position, new_orientation)
-    
+
     def remove_env_object(self, env_object_id):
-        """ 
+        """
         Remove an environment object from the simulation.
 
         keyword args:
@@ -250,14 +244,14 @@ class single_agent_env(simulation):
         object_kwargs: dict of additional keyword args to pass 
             to the object class.
         """
-        if not env_object_id in self._env_objs.keys():
+        if env_object_id not in self._env_objs.keys():
             raise KeyError(f'No object with ID:{env_object_id} found.')
         env_object = self._env_objs.get(env_object_id)
         # check if object was deleted (certain items cannot be deleted)
         deleted = env_object.delete()
         if deleted:
             _ = self._env_objs.pop(env_object_id)
-    
+
     def simulation_step(self, sleep:Optional[float]=None):
         """
         Move the physics simulation forward exactly one time step.
@@ -275,13 +269,14 @@ class single_agent_env(simulation):
 
 # ----------------------------------------------------------------------------
 
+
 class multi_agent_env(simulation):
-    """ 
+    """
     Set up a PyBullet simulation environment with multiple robot arms.
 
     The simulation can connect to the physics server with either
     `single_connection()` or `multiclient_server()` connection types.
-    
+
     keyword args:
     ------------
     use_GUI: run the simulation in a graphics window.

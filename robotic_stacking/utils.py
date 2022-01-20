@@ -1,31 +1,21 @@
-import json
-import os
-import time
-from collections import namedtuple
-from enum import Enum
-from itertools import chain, cycle, product
-from pathlib import Path
-from typing import Any, List, Optional, Tuple, Union
-
+from typing import List, Tuple, Union
 
 import numpy as np
 import pybullet as pbt
-import pybullet_data
 import quaternionic as qtr
-import spatialmath.base as smb
-from spatialmath import SE3, SO3
 
 # ----------------------------------------------------------------------------
 # General utility functions to use across scripts
 # ----------------------------------------------------------------------------
 
+
 class IncorrectNumberOfArgs(TypeError):
     """
     Raise if number of arguments to a function is incorrect.
-    
-    This can happen often when switching between lists, tuples and 
-    Numpy arrays, or when converting between angle and quaternion 
-    representations. 
+
+    This can happen often when switching between lists, tuples and
+    Numpy arrays, or when converting between angle and quaternion
+    representations.
     """
     pass
 
@@ -74,7 +64,7 @@ def transform_CS(target_pos, target_ort,
 
 def pyb_quaternion(q_in:Union[np.array, List[float], Tuple[float]], 
                    reverse=False):
-    """ 
+    """
     Re-order a quaternion so it conforms to PyBullet's convention.
 
     Most libraries use the convention (w, x, y, z) to represent 
@@ -127,7 +117,7 @@ def q_interp(start_ort:Union[np.array, List[float], Tuple[float]],
 
 
 def quaternion_from_RxRyRz(Rx, Ry, Rz, pyb_format=True):
-    """ 
+    """
     Get a quaternion from Rx, Ry, Rz rotations.
 
     If `pyb_format` is True, the quaternion is returned in PyBullet's 
@@ -195,7 +185,7 @@ def calculate_distance_error(goal_position:np.array, goal_orientation:np.array,
                              actual_position:np.array, actual_orientation:np.array):
     """
     Measures the error between desired and actual pose.
-    
+
     This function uses Euclidean distance to measure the translational  
     (position) error and the geodesic distance on the unit sphere 
     for the rotational (orientation) error.
@@ -249,7 +239,6 @@ def define_rays_from_to(dX_dY_dZ:Union[List, Tuple, np.array], ends=None):
     rays_from = np.concatenate(
         (np.eye(3, 3)*dX_dY_dZ, (-1)*np.eye(3, 3)*dX_dY_dZ)
     )
-    
     rays_to = np.array(ends) if ends else np.zeros([6, 3])
 
     return rays_from, rays_to
@@ -305,4 +294,3 @@ def polar2cart(polar_coords) -> np.array:
     cart_coords[:, 0] = polar_coords[:, 0] * np.cos(polar_coords[:, 1])
     cart_coords[:, 1] = polar_coords[:, 0] * np.sin(polar_coords[:, 1])
     return cart_coords
-
