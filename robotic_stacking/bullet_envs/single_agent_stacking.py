@@ -1,4 +1,4 @@
-from typing import Callable, Iterable, Literal, Optional
+from typing import Callable, Iterable, Literal, Optional, Tuple
 
 import numpy as np
 import quaternionic as qtr
@@ -86,10 +86,10 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
     def __init__(self, 
                  robot_pose_initialization:
                     Literal['random', 'specified', 'origin']='random', 
-                 random_position_limits:Iterable=[-0.1, 0.1], 
-                 random_orientation_limits:Iterable=[-0.25*np.pi, 0.25*np.pi], 
-                 robot_base_position:Optional[Iterable]=None, 
-                 robot_base_orientation:Optional[Iterable]=None, 
+                 random_position_limits:Tuple=(-0.1, 0.1), 
+                 random_orientation_limits:Tuple=(-0.25*np.pi, 0.25*np.pi), 
+                 robot_base_position:Optional[Tuple]=None, 
+                 robot_base_orientation:Optional[Tuple]=None, 
                  robot_kwargs:Optional[dict]=None, 
                  num_cubes:int=8, 
                  cube_pose_kwargs:Optional[dict]=None, 
@@ -99,14 +99,14 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
                         'default_4_corners', 'default_pyramid', 'specified'
                         ]='default_4_corners',
                  target_formation_coords:Optional[np.ndarray]=None, 
-                 target_formation_position:Optional[Iterable]=None, 
-                 target_cube_orientation:Optional[Iterable]=None, 
+                 target_formation_position:Optional[Tuple]=None, 
+                 target_cube_orientation:Optional[Tuple]=None, 
                  use_GUI:bool=False, 
-                 gravity:Iterable=(0., 0., -9.8), 
+                 gravity:Tuple=(0., 0., -9.8), 
                  n_transition_steps_per_sec:int=10, 
                  simulation_steps_per_sec:int=240, 
                  episode_time_limit:int=120, 
-                 mask_actions:Optional[Iterable]=None, 
+                 mask_actions:Optional[Tuple]=None, 
                  track_pose_error:bool=True, 
                  apply_collision_penalties:bool=True, 
                  reward_function:Optional[Callable]=None):
@@ -192,7 +192,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self._n_substeps = env_utils.calculate_simulation_substeps(
             self.transition_steps_per_sec, self.sim_steps_per_sec
         )
-        self._episode_step_limit = episode_time_limit*simulation_steps_per_sec
+        self._episode_sim_step_limit = episode_time_limit*simulation_steps_per_sec
         # environment parameters
         self._set_GUI = use_GUI
         self._set_gravity = gravity
@@ -261,7 +261,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self._collision_counter_floor = 0
         # episode data
         self._episode_done = False
-        self._episode_step_count = 0
+        self._episode_sim_step_count = 0
         self._num_episodes_finished = 0
         self._episode_reward = 0
         self._total_reward = 0
@@ -508,7 +508,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         return True if len(floor_collision) > 0 else False
 
     def episode_timed_out(self) -> bool:
-        if self._episode_step_count == self._episode_step_limit:
+        if self._episode_sim_step_count == self._episode_sim_step_limit:
             return True
         return False
 
@@ -549,7 +549,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             )
             self.reset_env_object(cube_id, new_cube_pos, new_cube_ort)
         self.process_state()
-        self._episode_step_count = 0
+        self._episode_sim_step_count = 0
         self._episode_reward = 0
         self._collision_counter_self = 0
         self._collision_counter_floor = 0
@@ -634,7 +634,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self._collision_counter_self = 0
         self._collision_counter_floor = 0
         for setting in sequence:
-            self._episode_step_count += 1            
+            self._episode_sim_step_count += 1            
             self.arm_control.set_actuators(setting)
             self.simulation_step(sleep=sleep)
             self._collision_counter_self += self.arm_control.detect_self_collision()
