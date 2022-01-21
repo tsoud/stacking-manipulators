@@ -56,6 +56,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         position is given.
     robot_kwargs: keyword args to the robot controller.
     num_cubes: number of physical cubes to stack.
+    cube_pose_kwargs: keyword args for `set_cube_poses()` method.
     target_formation: a target stack formation. A couple of preset 
         default options are available. 'default_4_corners' gives 
         4 vertical stacks spaced evenly from each other.
@@ -91,6 +92,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
                  robot_base_orientation:Optional[Iterable]=None, 
                  robot_kwargs:Optional[dict]=None, 
                  num_cubes:int=8, 
+                 cube_pose_kwargs:Optional[dict]=None, 
                  num_targets:int=8, 
                  target_formation:
                     Literal[
@@ -143,12 +145,15 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self.num_cubes = num_cubes
         self.starting_cube_locations = None
         self.starting_cube_orientations = None
-        self.cube_pose_kwargs = {
-                'min_dist': 0.2, 'max_dist': 0.7, 
-                'sweep': (1.5*np.pi), 
-                'delta_z_rotations': [-0.5*np.pi, 0.5*np.pi], 
-                'center': None
-            }
+        if cube_pose_kwargs is None:
+            self.cube_pose_kwargs = {
+                    'min_dist': 0.2, 'max_dist': 0.7, 
+                    'sweep': (1.5*np.pi), 
+                    'delta_z_rotations': [-0.5*np.pi, 0.5*np.pi], 
+                    'center': None
+                }
+        else:
+            self.cube_pose_kwargs = cube_pose_kwargs
         self.num_targets = num_targets
         self.target_formation = target_formation                      
         if self.target_formation == 'specified':
