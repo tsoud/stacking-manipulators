@@ -122,7 +122,7 @@ class small_cube:
                  simulation, 
                  position:Union[Tuple, List]=(0., 0., 0.), 
                  orientation:Union[Tuple, List]=(0., 0., 0., 1.), 
-                 maximal_coords=True):
+                 maximal_coords=False):
         self.__urdf_path = assets.find_urdf_objects().get('small_cube')
         tree = ET.parse(self.__urdf_path)
         self.__urdf_root = tree.getroot()
