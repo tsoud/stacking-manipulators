@@ -1,16 +1,8 @@
-import base64
 import json
-import time
-from dataclasses import asdict, dataclass, field, InitVar
-from typing import Callable, Iterable, Literal, Text, Tuple, Optional
-
+from dataclasses import asdict, dataclass, field
+from typing import Callable, Tuple, Optional
 
 import numpy as np
-import tensorflow as tf
-from tf_agents import specs
-from tf_agents.environments import py_environment, tf_py_environment
-import tf_agents.environments.utils as env_utils
-from tf_agents.trajectories import time_step
 
 from robotic_stacking.bullet_envs import single_agent_stacking
 
@@ -21,7 +13,7 @@ from robotic_stacking.bullet_envs import single_agent_stacking
 class single_env_config:
     """
     Customizable configuration for a single-agent stacking env.
-    
+
     NOTE: Attributes cannot be changed once the instance is created. 
     To change the configuration, overwrite the instance.
     """
@@ -114,6 +106,5 @@ class kvG3_stacking_pyramid_5a(kvG3_stacking_5action):
     """
     num_cubes: int = 15
     num_targets: int = 14
-    target_formation: str ='default_pyramid'
-    
+    target_formation: str = 'default_pyramid'
 
