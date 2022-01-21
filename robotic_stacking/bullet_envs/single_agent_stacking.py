@@ -293,7 +293,8 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         return {
             'end_effector_position': self._current_ee_pos, 
             'end_effector_orientation': self._current_ee_ort, 
-            'end_effector_pose_error': self._step_pose_error, 
+            'end_effector_position_error': self._step_pose_error[0], 
+            'end_effector_orientation_error': self._step_pose_error[1], 
             'grip_finger_positions': self._current_grip_pos,  
             'grip_contact_w_cubes': self._grip_touching_cube, 
             'grip_force': self._grip_force, 
