@@ -77,6 +77,10 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
     simulation_steps_per_sec: the PyBullet simulation timestep.
     episode_time_limit: time (in seconds) to allow before ending an 
         episode and resetting.
+    reset_on_episode_end: reset the environment if episode times out 
+        or all targets are achieved. It is best to leave this `False` 
+        when using the environment in RL training to let the RL 
+        library handle resetting.
     mask_actions: Use a boolean mask to restrict available actions. 
     track_pose_error: keep track of error between desired and actual 
         end-effector pose.
@@ -106,6 +110,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
                  n_transition_steps_per_sec:int=10, 
                  simulation_steps_per_sec:int=240, 
                  episode_time_limit:int=120, 
+                 reset_on_episode_end:bool=False, 
                  mask_actions:Optional[Tuple]=None, 
                  track_pose_error:bool=True, 
                  apply_collision_penalties:bool=True, 
@@ -193,6 +198,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             self.transition_steps_per_sec, self.sim_steps_per_sec
         )
         self._episode_sim_step_limit = episode_time_limit*simulation_steps_per_sec
+        self._reset_on_episode_end = reset_on_episode_end
         # environment parameters
         self._set_GUI = use_GUI
         self._set_gravity = gravity
@@ -508,7 +514,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         return True if len(floor_collision) > 0 else False
 
     def episode_timed_out(self) -> bool:
-        if self._episode_sim_step_count == self._episode_sim_step_limit:
+        if self._episode_sim_step_count >= self._episode_sim_step_limit:
             return True
         return False
 
@@ -643,8 +649,11 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         reward = self.calculate_reward()
         self._episode_reward += reward
         self._total_reward += reward
-        self._episode_done = self.episode_timed_out()
-        if self._episode_done:
+        if (np.all(self._cubes_aligned_w_targets)
+            or
+            self.episode_timed_out()):
+            self._episode_done = True
+        if (self._episode_done and self._reset_on_episode_end):
             self.reset()
 
     def close(self):
