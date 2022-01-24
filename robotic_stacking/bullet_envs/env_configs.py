@@ -51,12 +51,6 @@ class single_env_config:
         """Returns the configured environment."""
         pass
 
-
-@dataclass
-class single_env_config_unfrozen(single_env_config):
-    pass
-
-
 @dataclass(frozen=True)
 class default_kvG3_stacking_single_env(single_env_config):
     """Default Kinova Gen3 Hand-E stacking configuration."""
