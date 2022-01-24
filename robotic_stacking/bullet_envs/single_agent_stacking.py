@@ -592,9 +592,20 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self._target_point_locations = self.target_locators
         _, self._cubes_aligned_w_targets = (self.check_target_alignment())
 
-    def calculate_reward(self, **kwargs):
+    def calculate_reward(self, fn_kwargs:Optional[dict]=None):
+        """ 
+        Calculate episode transition step rewards.
+
+        If a reward function is given, it is used for calculation. 
+        Otherwise, a default reward is calculated based on elapsed 
+        time (in timesteps), cube alignment success, and pose and 
+        collision penalties if applicable.
+
+        **fn_kwargs: keyword args to pass to the reward function if used.
+        """
         if self.reward_fn:
-            reward = self.reward_fn(**kwargs)
+            fn_kwargs = {} if fn_kwargs is None else fn_kwargs
+            reward = self.reward_fn(**fn_kwargs)
         else:
             if self._track_pose_error:
                 pose_error_penalty = env_utils.apply_pose_penalty(
