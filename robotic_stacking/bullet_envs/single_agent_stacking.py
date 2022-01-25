@@ -554,12 +554,13 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
                 cube._init_ort[3]
             )
             self.reset_env_object(cube_id, new_cube_pos, new_cube_ort)
-        self.process_state()
+        self._episode_done = False
         self._episode_sim_step_count = 0
         self._episode_reward = 0
         self._collision_counter_self = 0
         self._collision_counter_floor = 0
         self._num_episodes_finished += 1
+        self.process_state()
 
     def process_state(self):
         self._current_ee_pos, self._current_ee_ort = (
