@@ -182,12 +182,6 @@ class tfagents_stacking_env(py_environment.PyEnvironment):
         """
         view_matrix = self._env.sim.computeViewMatrixFromYawPitchRoll(*camera_view)      
         if projection_matrix is None:
-            # proj_matrix = (
-            #     0.530729, 0.0, 0.0, 0.0,
-            #     0.0, 1.0, 0.0, 0.0,
-            #     0.0, 0.0, -1.0, -1.0,
-            #     0.0, 0.0, -0.02, 0.0
-            # )
             proj_matrix = self._env.sim.computeProjectionMatrixFOV(
                 60, (img_size[0]/img_size[1]), 0.1, 100
             )
