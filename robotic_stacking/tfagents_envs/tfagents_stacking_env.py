@@ -87,6 +87,10 @@ class tfagents_stacking_env(py_environment.PyEnvironment):
             config_dict = json.load(fp=fp)
         return cls(**config_dict)
 
+    @property
+    def env(self):
+        return self._env
+    
     def get_state_data(self):
         """
         Extract observations, reward, episode status from the state.
