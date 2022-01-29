@@ -134,7 +134,7 @@ class reverb_buffer:
 
     def create_buffer(self):
         """
-        Make a reverb replay buffer from the class configuration.
+        Make a reverb replay buffer from the instance configuration.
         """
         # the reverb table determines how trajectories are added to 
         # and removed from the reverb replay buffer
