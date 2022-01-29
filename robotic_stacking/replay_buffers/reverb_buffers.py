@@ -47,8 +47,7 @@ class reverb_buffer:
                  replay_max_size:int, 
                  timesteps_and_stride_per_sample:tuple, 
                  replay_name:Optional[str]=None, 
-                 replay_sampler:
-                    Literal[
+                 replay_sampler:Literal[
                         'Fifo',
                         'Lifo',
                         'MaxHeap',
@@ -135,7 +134,7 @@ class reverb_buffer:
 
     def create_buffer(self):
         """
-        Make a reverb table from the class configuration.
+        Make a reverb replay buffer from the class configuration.
         """
         # the reverb table determines how trajectories are added to 
         # and removed from the reverb replay buffer
