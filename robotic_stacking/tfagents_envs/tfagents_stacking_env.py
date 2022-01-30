@@ -69,12 +69,10 @@ class tfagents_stacking_env(py_environment.PyEnvironment):
         # get the initial state
         _, self._episode_done, self._observations = self.get_state_data()
         # define the observation spec
-        self._observation_spec = {
-            'observations': specs.array_spec.ArraySpec(
-                shape=self._observations.shape,
-                dtype=self._observations.dtype
-            )
-        }
+        self._observation_spec = specs.array_spec.ArraySpec(
+            shape=self._observations.shape,
+            dtype=self._observations.dtype
+        )
 
     @classmethod
     def create_from_json(cls, json_filepath):
