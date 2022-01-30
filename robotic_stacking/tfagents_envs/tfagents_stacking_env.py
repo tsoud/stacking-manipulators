@@ -2,7 +2,6 @@ import json
 from typing import List, Optional, Union
 
 import numpy as np
-# import tensorflow as tf
 import tf_agents.environments.utils as tfa_env_utils
 from PIL import Image
 from tf_agents import specs
@@ -71,10 +70,6 @@ class tfagents_stacking_env(py_environment.PyEnvironment):
         _, self._episode_done, self._observations = self.get_state_data()
         # define the observation spec
         self._observation_spec = {
-            'episode_done': specs.array_spec.ArraySpec(
-                shape=self._episode_done.shape,
-                dtype=self._episode_done.dtype
-            ),
             'observations': specs.array_spec.ArraySpec(
                 shape=self._observations.shape,
                 dtype=self._observations.dtype
@@ -131,6 +126,10 @@ class tfagents_stacking_env(py_environment.PyEnvironment):
     def observation_spec(self):
         return self._observation_spec
 
+    @property
+    def env(self):
+        return self._env
+    
     def _reset(self):
         self._env.reset()
         # retrieve initial state
@@ -208,7 +207,7 @@ class tfagents_stacking_env(py_environment.PyEnvironment):
         self._env.close()
 
     def wrap_to_TF_env(self, 
-                       validation:Optional[int]=5, 
+                       validation:Optional[int]=None, 
                        check_dims:bool=True, 
                        isolation:bool=False):
         """
