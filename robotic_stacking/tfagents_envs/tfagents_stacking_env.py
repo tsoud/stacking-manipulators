@@ -131,14 +131,9 @@ class tfagents_stacking_env(py_environment.PyEnvironment):
     def _reset(self):
         self._env.reset()
         # retrieve initial state
-        _, self._episode_done, self._observations = self.get_state_data()
+        _, self._episode_done, self._obs = self.get_state_data()
 
-        return time_step.restart(
-            {
-                'episode_done': self._episode_done, 
-                'observations': self._observations
-            }
-        )
+        return time_step.restart(self._obs)
 
     def _step(self, action):
         if self._episode_done:    
@@ -146,15 +141,11 @@ class tfagents_stacking_env(py_environment.PyEnvironment):
 
         else:
             self._env.run_actions(action)
-            reward, self._episode_done, self._state = self.get_state_data()
-            new_state = {
-                'episode_done': self._episode_done,
-                'observations': self._observations
-            }
+            reward, self._episode_done, self._obs = self.get_state_data()
             if self._episode_done:
-                return time_step.termination(new_state, reward)
+                return time_step.termination(self._obs, reward)
 
-            return time_step.transition(new_state, reward)
+            return time_step.transition(self._obs, reward)
 
     def render(self, 
                show:bool=True, 
