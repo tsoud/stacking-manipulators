@@ -1,4 +1,6 @@
 import json
+import pprint
+from collections import namedtuple
 from typing import List, Optional, Union
 
 import numpy as np
@@ -73,6 +75,29 @@ class tfagents_stacking_env(py_environment.PyEnvironment):
             shape=self._observations.shape,
             dtype=self._observations.dtype
         )
+        # env info to pass to __repr__()
+        self.__env_info = namedtuple(
+            'env_config', [
+                'robot', 'n_cubes', 'target_formation', 'transitions_per_sec', 
+                'sim_steps_per_sec', 'max_transitions_per_episode', 
+                'available_actions'
+                ]
+        )
+
+    def __repr__(self):
+        actions = np.array(
+            ['dx', 'dy', 'dz', 'Rx', 'Ry', 'Rz', 'd_grip']
+        )[self._env._available_actions]
+        env_config_info = self.__env_info(
+            self._env.arm_control, 
+            self._env.num_cubes, 
+            self._env.target_formation, 
+            self._env.transition_steps_per_sec, 
+            self._env.sim_steps_per_sec, 
+            int(self._env._episode_sim_step_limit/self._env._n_substeps), 
+            tuple(actions)
+        )
+        return pprint.pformat(env_config_info._asdict(), width=80, sort_dicts=False)
 
     @classmethod
     def create_from_json(cls, json_filepath):
