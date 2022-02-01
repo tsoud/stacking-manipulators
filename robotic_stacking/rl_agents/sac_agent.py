@@ -2,12 +2,11 @@ from typing import List, Optional
 
 import tensorflow as tf
 from tf_agents.agents import ddpg, sac
+from tf_agents.environments import tf_py_environment
 from tf_agents.agents.sac import tanh_normal_projection_network
 from tf_agents.networks import actor_distribution_network
 from tf_agents.train.utils import spec_utils, strategy_utils, train_utils
 from tf_agents.typing import types
-
-from robotic_stacking.tfagents_envs import tfagents_stacking_env
 
 # --------------------------------------------------------------------------- #
 
@@ -15,6 +14,9 @@ from robotic_stacking.tfagents_envs import tfagents_stacking_env
 class tfa_sac_agent:
     """
     Define a TF-Agents Soft Actor-Critic agent.
+
+    Configures NN parameters for actor and critic, distribution 
+    strategy (CPU/GPU/TPU), and agent-specific parameters.
 
     keyword args:
     ------------
@@ -54,24 +56,24 @@ class tfa_sac_agent:
         If `False`, use CPU.
     use_tpu: Applies TPU strategy if available.
     """
-    def __init__(self, 
-                 tfa_env:tfagents_stacking_env.tf_py_environment, 
-                 actor_net_params:dict, 
-                 critic_net_params:dict, 
-                 actor_activation_fn=tf.keras.activations.relu, 
-                 critic_activation_fn:Optional=None, 
-                 critic_output_activation:Optional=None, 
-                 actor_kernel_initializer='glorot_uniform', 
-                 critic_kernel_initializer:Optional=None, 
-                 critic_last_kernel_init:Optional=None, 
-                 actor_dtype=tf.float32, 
+    def __init__(self,
+                 tfa_env:tf_py_environment,
+                 actor_net_params:dict,
+                 critic_net_params:dict,
+                 actor_activation_fn=tf.keras.activations.relu,
+                 critic_activation_fn:Optional=None,
+                 critic_output_activation:Optional=None,
+                 actor_kernel_initializer='glorot_uniform',
+                 critic_kernel_initializer:Optional=None,
+                 critic_last_kernel_init:Optional=None,
+                 actor_dtype=tf.float32,
                  use_gpu=True, use_tpu=False):
 
-        self.collect_env = tfa_env.env
+        self.collect_env = tfa_env._env
         self._observation_spec, self._action_spec, self._time_step_spec = (
             spec_utils.get_tensor_specs(self.collect_env)
         )
-        self.eval_env = tfa_env.env
+        self.eval_env = tfa_env._env
         self.actor_net_params = actor_net_params
         self.critic_net_params = critic_net_params
         self.actor_activation = actor_activation_fn
@@ -107,14 +109,14 @@ class tfa_sac_agent:
             with self.strategy.scope():
                 self._actor_net = (
                     actor_distribution_network.ActorDistributionNetwork(
-                        input_tensor_spec=self._observation_spec, 
-                        output_tensor_spec=self._action_spec, 
+                        input_tensor_spec=self._observation_spec,
+                        output_tensor_spec=self._action_spec,
                         continuous_projection_net=(
                             tanh_normal_projection_network
                             .TanhNormalProjectionNetwork
-                        ), 
-                        activation_fn=self.actor_activation, 
-                        dtype=self.actor_layers_dtype, 
+                        ),
+                        activation_fn=self.actor_activation,
+                        dtype=self.actor_layers_dtype,
                         **self.actor_net_params
                     )
                 )
@@ -143,12 +145,12 @@ class tfa_sac_agent:
         if (self._critic_net is None) or overwrite:
             with self.strategy.scope():
                 self._critic_net = ddpg.critic_network.CriticNetwork(
-                    input_tensor_spec=(self._observation_spec, 
-                                       self._action_spec), 
-                    activation_fn=self.critic_activation, 
-                    output_activation_fn=self.critic_output_activation, 
-                    kernel_initializer=self.critic_kernel_initializer, 
-                    last_kernel_initializer=self.critic_last_kernel_init, 
+                    input_tensor_spec=(self._observation_spec,
+                                       self._action_spec),
+                    activation_fn=self.critic_activation,
+                    output_activation_fn=self.critic_output_activation,
+                    kernel_initializer=self.critic_kernel_initializer,
+                    last_kernel_initializer=self.critic_last_kernel_init,
                     **self.critic_net_params
                 )
 
