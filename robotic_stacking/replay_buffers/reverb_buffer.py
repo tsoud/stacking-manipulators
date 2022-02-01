@@ -47,22 +47,8 @@ class reverb_buffer:
                  replay_max_size:int, 
                  timesteps_and_stride_per_sample:tuple, 
                  replay_name:Optional[str]=None, 
-                 replay_sampler:Literal[
-                        'Fifo',
-                        'Lifo',
-                        'MaxHeap',
-                        'MinHeap',
-                        'Prioritized',
-                        'Uniform'
-                        ]='Uniform',
-                 replay_remover:Literal[
-                        'Fifo',
-                        'Lifo',
-                        'MaxHeap',
-                        'MinHeap',
-                        'Prioritized',
-                        'Uniform'
-                        ]='Fifo', 
+                 replay_sampler:Literal['Fifo', 'Lifo', 'MaxHeap', 'MinHeap', 'Prioritized', 'Uniform']='Uniform',
+                 replay_remover:Literal['Fifo', 'Lifo', 'MaxHeap', 'MinHeap', 'Prioritized', 'Uniform']='Fifo', 
                  replay_rate_limiter:
                     Optional[reverb.rate_limiters.RateLimiter]=None, 
                  replay_sample_batch_size:int=64, 
