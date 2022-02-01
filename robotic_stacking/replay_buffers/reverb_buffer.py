@@ -115,6 +115,7 @@ class reverb_buffer:
         self._reverb_server = None
         self._replay_observer = None
         self._replay_dataset = None
+        self._experience_dataset_fn = None
 
     @staticmethod
     def add_optional_kwargs(main_kwargs, opt_kwargs):
@@ -212,3 +213,7 @@ class reverb_buffer:
                 .max_times_sampled
         return pprint.pp(info, sort_dicts=False, indent=1, width=80)
 
+    def shutdown_buffer(self):
+        """Close the observer and stop the reverb server."""
+        self._replay_observer.close()
+        self._reverb_server.stop()
