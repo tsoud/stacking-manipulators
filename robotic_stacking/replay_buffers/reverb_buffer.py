@@ -3,6 +3,7 @@ from typing import Literal, Optional
 
 import reverb
 from tf_agents.replay_buffers import reverb_replay_buffer, reverb_utils
+from tf_agents.trajectories import trajectory
 
 # ----------------------------------------------------------------------------
 
@@ -13,7 +14,10 @@ class reverb_buffer:
 
     keyword args:
     ------------
-    replay_max_size: Maximum number of samples to hold in buffer. 
+    trajectory_data_spec: a tf_agents `Trajectory` object providing the  
+        specification of the data collected and added to the buffer, 
+        usually it is the agent's `.collect_data_spec` attribute.
+    replay_max_size: maximum number of samples to hold in buffer. 
     timesteps_and_stride_per_sample: Tuple of (n_timesteps, stride).
         Number of timesteps to collect for each trajectory. The stride 
         describes how trajectories overlap. 
@@ -23,32 +27,35 @@ class reverb_buffer:
         the start state for the subsequent trajectory.
         This parameter also specifies the `num_steps` argument for the 
         buffer's `as_dataset()` method.
-    replay_name: Name to give replay buffer table. If `None`, the table 
+    replay_name: name to give replay buffer table. If `None`, the table 
         is named after the replay sample e.g. 'uniform_sampling_table'.
     replay_sampler: Method for sampling from replay buffer. Call 
         `selector_types(print_only=True)` to see available selection 
         methods.
-    replay_remover: Method for removing samples from replay buffer. 
+    replay_remover: method for removing samples from replay buffer. 
         Call `selector_types(print_only=True)` to see available 
         selection methods.
-    replay_rate_limiter: Method to call for organizing insertion into 
+    replay_rate_limiter: method to call for organizing insertion into 
         and sampling from replay buffer. See 
         https://github.com/deepmind/reverb#rate-limiting for details.
-    replay_sample_batch_size: Number of samples to take from replay 
+    replay_sample_batch_size: number of samples to take from replay 
         memory for each training step. Samples are batched for input.
-    replay_sample_prefetch: Number of replay dataset elements to 
+    replay_sample_prefetch: number of replay dataset elements to 
         prefetch (cache) to speed up the pipeline.
-    priority_exp: Priority exponent to use with prioritized sampler. 
+    priority_exp: priority exponent to use with prioritized sampler. 
         Ignored for other buffer types.
     kwargs: optional kwargs for the reverb table, reverb buffer, 
         replay observer, and replay dataset.
     """
     def __init__(self, 
+                 trajectory_data_spec:trajectory.Trajectory, 
                  replay_max_size:int, 
                  timesteps_and_stride_per_sample:tuple, 
                  replay_name:Optional[str]=None, 
-                 replay_sampler:Literal['Fifo', 'Lifo', 'MaxHeap', 'MinHeap', 'Prioritized', 'Uniform']='Uniform',
-                 replay_remover:Literal['Fifo', 'Lifo', 'MaxHeap', 'MinHeap', 'Prioritized', 'Uniform']='Fifo', 
+                 replay_sampler:
+                 Literal['Fifo', 'Lifo', 'MaxHeap', 'MinHeap', 'Prioritized', 'Uniform']='Uniform',
+                 replay_remover:
+                 Literal['Fifo', 'Lifo', 'MaxHeap', 'MinHeap', 'Prioritized', 'Uniform']='Fifo', 
                  replay_rate_limiter:
                     Optional[reverb.rate_limiters.RateLimiter]=None, 
                  replay_sample_batch_size:int=64, 
@@ -67,7 +74,8 @@ class reverb_buffer:
             'Prioritized': reverb.selectors.Prioritized(priority_exp), 
             'Uniform': reverb.selectors.Uniform()
         }
-        # main instance attributes
+        # main buffer attributes
+        self.trajectory_data_spec = trajectory_data_spec
         self.replay_max_size = replay_max_size
         self.num_traj_steps = timesteps_and_stride_per_sample[0]
         self.traj_stride = timesteps_and_stride_per_sample[1]
@@ -111,7 +119,7 @@ class reverb_buffer:
         updated_kwargs = {
             k: v for k, v in opt_kwargs.items() if k not in main_kwargs.keys()
         }
-        return main_kwargs.update(updated_kwargs)
+        main_kwargs.update(updated_kwargs)
 
     def show_selector_options(self):
         """
@@ -125,52 +133,46 @@ class reverb_buffer:
         """
         # the reverb table determines how trajectories are added to 
         # and removed from the reverb replay buffer
-        main_table_kwargs = dict(
+        table_kwargs = dict(
             name=self.table_name, 
             max_size=self.replay_max_size, 
             sampler=self.replay_sampler, 
             remover=self.replay_remover, 
             rate_limiter=self.replay_rate_limiter
         )   # args defined by class constructor
-        table_kwargs = self.add_optional_kwargs(
-            main_table_kwargs, self.reverb_table_kwargs
-        )
+        self.add_optional_kwargs(table_kwargs, self.reverb_table_kwargs)
         self._reverb_table = reverb.Table(**table_kwargs)
         # the reverb replay buffer is set up as a server and client
         self._reverb_server = reverb.Server([self._reverb_table])
-        main_buffer_kwargs = dict(
-            py_client=self._replay_buffer.py_client, 
+        buffer_kwargs = dict(
+            data_spec=self.trajectory_data_spec, 
             table_name=self.table_name, 
             sequence_length=self.num_traj_steps, 
-            stride_length=self.traj_stride
+            local_server=self._reverb_server
         )
-        buffer_kwargs = self.add_optional_kwargs(
-            main_buffer_kwargs, self.reverb_buffer_kwargs
-        )
+        self.add_optional_kwargs(buffer_kwargs, self.reverb_buffer_kwargs)
         self._replay_buffer = reverb_replay_buffer.ReverbReplayBuffer(
             **buffer_kwargs
         )
         # the replay observer writes trajectories from actors to the buffer
-        main_observer_kwargs = dict(
+        observer_kwargs = dict(
             py_client=self._replay_buffer.py_client, 
             table_name=self.table_name, 
             sequence_length=self.num_traj_steps, 
             stride_length=self.traj_stride
         )
-        observer_kwargs = self.add_optional_kwargs(
-            main_observer_kwargs, self.replay_observer_kwargs
-        )
+        self.add_optional_kwargs(observer_kwargs, self.replay_observer_kwargs)
         self._replay_observer = reverb_utils.ReverbAddTrajectoryObserver(
             **observer_kwargs
         )
         # a training dataset passes trajectories from the replay buffer 
         # to the learner
-        main_replay_dataset_kwargs = dict(
+        replay_dataset_kwargs = dict(
             sample_batch_size=self.replay_batch_size, 
             num_steps=self.num_traj_steps
         )
-        replay_dataset_kwargs = self.add_optional_kwargs(
-            main_replay_dataset_kwargs, self.replay_dataset_kwargs
+        self.add_optional_kwargs(
+            replay_dataset_kwargs, self.replay_dataset_kwargs
         )
         self._replay_dataset = self._replay_buffer.as_dataset(
             **replay_dataset_kwargs
