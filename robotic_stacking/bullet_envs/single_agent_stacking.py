@@ -84,8 +84,13 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
     mask_actions: Use a boolean mask to restrict available actions. 
     track_pose_error: keep track of error between desired and actual 
         end-effector pose.
-    reward_function: reward function for calculating rewards. If none 
-        is given, a default calculation is used.
+    reward_function: method for calculating rewards. 'sparse' uses a 
+        binary reward that is negative for every step and positive 
+        when the task is completed. Sparse rewards are scaled to +/- 1
+        'dense' applies additional intermediate penalties and rewards.
+        Rewards are not scaled when 'dense' is used. 'custom' allows 
+        the user to pass a custom reward fn to the `custom_rewards()` 
+        method that will be used for reward calculation.
     """
     def __init__(self, 
                  robot_pose_initialization:
@@ -99,9 +104,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
                  cube_pose_kwargs:Optional[dict]=None, 
                  num_targets:int=8, 
                  target_formation:
-                    Literal[
-                        'default_4_corners', 'default_pyramid', 'specified'
-                        ]='default_4_corners',
+                    Literal['default_4_corners', 'default_pyramid', 'specified']='default_4_corners',
                  target_formation_coords:Optional[np.ndarray]=None, 
                  target_formation_position:Optional[Tuple]=None, 
                  target_cube_orientation:Optional[Tuple]=None, 
@@ -114,7 +117,8 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
                  mask_actions:Optional[Tuple]=None, 
                  track_pose_error:bool=True, 
                  apply_collision_penalties:bool=True, 
-                 reward_function:Optional[Callable]=None):
+                 reward_function:
+                    Literal['sparse', 'dense', 'custom']='dense'):
         # set up robot pose
         self._robot_pose_init=robot_pose_initialization
         if self._robot_pose_init == 'random':
@@ -198,6 +202,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             self.transition_steps_per_sec, self.sim_steps_per_sec
         )
         self._episode_sim_step_limit = episode_time_limit*simulation_steps_per_sec
+        self._max_transition_steps = episode_time_limit*n_transition_steps_per_sec
         self._reset_on_episode_end = reset_on_episode_end
         # environment parameters
         self._set_GUI = use_GUI
@@ -217,7 +222,15 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         # use collision penalties
         self.apply_collision_penalties = apply_collision_penalties
         # reward function
+        if reward_function not in ['sparse', 'dense', 'custom']:
+            raise ValueError(
+                f"`reward_function='{reward_function}'` is invalid."
+                + " Please specify 'sparse', 'dense', or 'custom'."
+            )
         self.reward_fn = reward_function
+        if self.reward_fn == 'custom':
+            self._custom_reward_fn = None
+            self._custom_reward_fn_kwargs = {}
         
     def make(self):
         """Create the environment."""
@@ -273,6 +286,21 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self._total_reward = 0
         # start tracking state observations
         self.process_state()
+
+    def custom_reward_fn(self, reward_fn:Callable, **fn_kwargs):
+        """
+        Define a custom reward function.
+
+        NOTE: the instance's `.make()` method should typically be 
+        called before using this method.
+
+        keyword args:
+        ------------
+        reward_fn: a reward function to use
+        fn_kwargs: kewyord args to pass to the function.
+        """
+        self._custom_reward_fn = reward_fn
+        self._custom_reward_fn_kwargs = {k: v for k, v in fn_kwargs.items()}
 
     @property
     def targets(self):
@@ -593,7 +621,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self._target_point_locations = self.target_locators
         _, self._cubes_aligned_w_targets = (self.check_target_alignment())
 
-    def calculate_reward(self, fn_kwargs:Optional[dict]=None):
+    def calculate_reward(self):
         """ 
         Calculate episode transition step rewards.
 
@@ -604,9 +632,21 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
 
         **fn_kwargs: keyword args to pass to the reward function if used.
         """
-        if self.reward_fn:
-            fn_kwargs = {} if fn_kwargs is None else fn_kwargs
-            reward = self.reward_fn(**fn_kwargs)
+        if self.reward_fn == 'custom':
+            if self._custom_reward_fn is None:
+                raise AttributeError(
+                    "Reward fn was set to 'custom' but no custom function was"
+                    + " defined. You can use the `custom_reward_fn()` method"
+                    + " to define one, or set the reward function to either " 
+                    + "'sparse' or 'dense'."
+                )
+            reward = self._custom_reward_fn(**self._custom_reward_fn_kwargs)
+        elif self.reward_fn == 'sparse':
+            # rewards are scaled to [-1, 1]
+            if np.all(self._cubes_aligned_w_targets):
+                reward = 1.
+            else:
+                reward = -1. / self._max_transition_steps
         else:
             if self._track_pose_error:
                 pose_error_penalty = env_utils.apply_pose_penalty(
@@ -621,11 +661,14 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
                 )*(-1)
             else:
                 collision_penalties = 0
+            # # add a reward when both gripper fingers touch a cube
+            # touching_cube = np.sum(np.all(self._grip_touching_cube, axis=1))
             reward = (
-                (-1)/(self.transition_steps_per_sec)
+                (-1)/(self._max_transition_steps)
                 + np.sum(self._cubes_aligned_w_targets)
                 + pose_error_penalty
                 + collision_penalties
+                # + touching_cube/self._max_transition_steps
             )
         return reward
 

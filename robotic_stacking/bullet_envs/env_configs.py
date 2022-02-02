@@ -38,7 +38,7 @@ class single_env_config:
     gravity: Tuple = (0., 0., -9.81)
     simulation_steps_per_sec: int = 240
     mask_actions: Optional[Tuple] = None
-    reward_function: Optional[Callable] = None
+    reward_function: str = 'dense'
 
     def to_env_kwargs(self) -> dict:
         return asdict(self)
