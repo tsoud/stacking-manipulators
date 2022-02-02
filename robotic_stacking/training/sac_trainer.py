@@ -65,8 +65,7 @@ class sac_trainer:
                      replay_buffers.replay_buffer.ReplayBuffer
                      ], 
                  initial_replay_steps:int, 
-                 num_eval_episodes:int=10, 
-                 eval_interval:Optional[int]=10_000, 
+                 num_eval_episodes:int=5, 
                  collection_steps_per_run:int=1, 
                  train_metrics:list=[], 
                  save_dir:Optional[str]=None, 
@@ -137,9 +136,9 @@ class sac_trainer:
         # useful info about actor and learner configs
         self._actor_learner_info = {}
 
-    @property
     def actor_and_learner_info(self):
-        return pprint.pp(self._actor_learner_info, indent=1, width=80)
+        """Get a description of the actors and learner."""
+        return pprint.pp(self._actor_learner_info, indent=1, width=120)
 
     def create_replay_init_actor(self, overwrite:bool=False, **kwargs):
         """
@@ -309,6 +308,22 @@ class sac_trainer:
             self._actor_learner_info['learner'] = learner_args
             self._learner = learner.Learner(**learner_args)
 
+    def make_default_actors_and_learner(self):
+        """
+        Create all actors and learner with default arguments.
+        """
+        print('Creating actors and learner with default args.\n')
+        self.create_replay_init_actor()
+        self.create_collect_actor()
+        self.create_eval_actor()
+        self.set_learner_triggers()
+        self.create_learner()
+        print(
+            '\nDone. Use `actor_and_learner_info()` to view configuration.'
+            + ' To create actors or learner with optional arguments, call the'
+            + ' relevant actor/learner creation method directly.\n'
+        )
+
     def check_agent_setup(self):
         """Checks if actors and learner are set up before training."""
         if self._replay_init_actor is None:
@@ -334,6 +349,8 @@ class sac_trainer:
 
     def run_replay_collector(self, show_progress_bar=True):
         """Collect seed steps for the replay memory."""
+        self.check_agent_setup()
+
         show_prog = (
             '' if self.replay_init_prog_bar
             else (
@@ -355,6 +372,8 @@ class sac_trainer:
     
     def get_eval_metrics(self):
         """Run the eval actor and rertrieve training metrics."""
+        self.check_agent_setup()
+
         self._eval_actor.run()
         results = {}
         for metric in self._eval_actor.metrics:
@@ -368,6 +387,7 @@ class sac_trainer:
               resume_from_prev_run:bool=True, 
               previous_train_step:Optional[int]=None, 
               run_replay_init:bool=False, 
+              replay_init_prog_bar:bool=True, 
               learner_iterations:int=1, 
               eval_interval:Optional[int]=None, 
               log_interval:Optional[int]=None):
@@ -385,6 +405,7 @@ class sac_trainer:
         run_replay_init: Runs the `initial_collect_actor` to add 
             samples to the replay buffer without training. Typically 
             not needed if resuming training from a previous run.
+        replay_init_prog_bar: show progress bar for replay init.
         learner_iterations: Number of iterations performed every time 
             the learner is called.
         eval_interval: Frequency of printing evaluation metrics. If 
@@ -392,9 +413,10 @@ class sac_trainer:
         log_interval: Frequency of printing loss information. 
             If `None`, loss information is not printed.
         """
-        if run_replay_init:
-            self.run_replay_collector()
+        self.check_agent_setup()
 
+        if run_replay_init:
+            self.run_replay_collector(show_progress_bar=replay_init_prog_bar)
         # Reset training step counter
         self._agent.train_step_counter.assign(0)
         # Get return values before start of training
