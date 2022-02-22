@@ -355,6 +355,13 @@ class robotic_arm_controller:
             position, orientation = self.wcs_2_lcs(position, orientation)
         return np.array(position), np.array(orientation)
 
+    def arm_joint_positions(self) -> np.array:
+        """Returns current positions of the arm joints."""
+        states = self._sim.getJointStates(
+            self._robot_id, self._robot.arm_actuators
+        )
+        return np.array([s[0] for s in states], dtype=float)
+
     def grip_finger_positions(self) -> np.array:
         """Returns current actuator positions of the grip fingers."""
         states = self._sim.getJointStates(self._robot_id, self._robot.grip_ids)
@@ -610,7 +617,7 @@ class kvG3_7_HdE_control(robotic_arm_controller):
                 )[: -len(self._robot.grip_ids)]
             )
             # Assign gripper actuator settings directly
-            sequence[step-1, -len(self._robot.grip_ids):] = grip_stops[step]
+            sequence[step - 1, -len(self._robot.grip_ids):] = grip_stops[step]
         # Repeat the last row as the last assignment (helps stabilize forces)
         sequence[-1] = sequence[-2]
 
@@ -648,7 +655,7 @@ class kvG3_7_HdE_control(robotic_arm_controller):
         else:
             position_gains = position_gains
 
-        pbt.setJointMotorControlArray(
+        self._sim.setJointMotorControlArray(
             bodyUniqueId=self._robot_id,
             jointIndices=joints,
             controlMode=pbt.POSITION_CONTROL,
