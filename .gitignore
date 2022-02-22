@@ -10,3 +10,11 @@ combined.urdf
 *.pyc
 IK_setup1.py
 dummy.py
+example_train_script.py
+example_train_script_td3.py
+**/robotic_stacking/training/runs
+example_nn_params.json
+example_train_params.json
+example_nn_params_td3.json
+example_train_params_td3.json
+stack_*.json
