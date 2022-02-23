@@ -13,10 +13,11 @@ import tqdm
 from tf_agents import metrics, policies, replay_buffers
 from tf_agents.replay_buffers import reverb_replay_buffer, reverb_utils
 from tf_agents.train import actor, learner, triggers
-from tf_agents.typing import types as tfa_types
-from tf_agents.utils import common
 from tf_agents.train.utils import spec_utils, strategy_utils
 from tf_agents.train.utils import train_utils as tfa_train_utils
+from tf_agents.typing import types as tfa_types
+from tf_agents.utils import common
+
 
 from robotic_stacking.replay_buffers import reverb_buffer
 from robotic_stacking.rl_agents import sac_agent
@@ -42,7 +43,7 @@ class sac_trainer:
 
     keyword args:
     ------------
-    agent_class: Instance of `minitaur_sac_agent` containing the agent 
+    agent_class: Instance of `tfa_sac_agent` containing the agent 
         to train.
     replay_buffer: An instance of `reverb_buffer` or any buffer 
         from `tf_agents.replay_buffers.replay_buffer.ReplayBuffer`
@@ -60,10 +61,8 @@ class sac_trainer:
     """
     def __init__(self,  
                  agent:sac_agent.tfa_sac_agent, 
-                 replay_buffer:Union[
-                     reverb_buffer.reverb_buffer, 
-                     replay_buffers.replay_buffer.ReplayBuffer
-                     ], 
+                 replay_buffer:
+                    Union[reverb_buffer.reverb_buffer, replay_buffers.replay_buffer.ReplayBuffer], 
                  initial_replay_steps:int, 
                  num_eval_episodes:int=5, 
                  collection_steps_per_run:int=1, 
@@ -80,7 +79,7 @@ class sac_trainer:
         self._eval_env = self._agent_class.eval_env
         self._train_step = self._agent_class.train_step
         # replay buffer params and replay init actor steps
-        self._replay_buffer = replay_buffer       
+        self._replay_buffer = replay_buffer  
         self._replay_observer = self._replay_buffer._replay_observer
         self._experience_dataset_fn = (
             self._replay_buffer._experience_dataset_fn
@@ -308,16 +307,20 @@ class sac_trainer:
             self._actor_learner_info['learner'] = learner_args
             self._learner = learner.Learner(**learner_args)
 
-    def make_default_actors_and_learner(self):
+    def make_default_actors_and_learner(self, overwrite:bool=False):
         """
         Create all actors and learner with default arguments.
+
+        keyword args:
+        ------------
+        overwrite: overwrite any exising actors or learner.
         """
         print('Creating actors and learner with default args.\n')
-        self.create_replay_init_actor()
-        self.create_collect_actor()
-        self.create_eval_actor()
-        self.set_learner_triggers()
-        self.create_learner()
+        self.create_replay_init_actor(overwrite=overwrite)
+        self.create_collect_actor(overwrite=overwrite)
+        self.create_eval_actor(overwrite=overwrite)
+        self.set_learner_triggers(overwrite_existing=overwrite)
+        self.create_learner(overwrite=overwrite)
         print(
             '\nDone. Use `actor_and_learner_info()` to view configuration.'
             + ' To create actors or learner with optional arguments, call the'
@@ -326,6 +329,12 @@ class sac_trainer:
 
     def check_agent_setup(self):
         """Checks if actors and learner are set up before training."""
+        if self._replay_buffer._replay_buffer is None:
+            print(
+                "Note: Replay buffer was configured but not initialized." 
+                + " Initializing now..."
+                )
+            self._replay_buffer.create_buffer()
         if self._replay_init_actor is None:
             raise MissingActorOrLearnerException(
                 'A `replay_init_actor` is required but none was found. ' 
@@ -372,8 +381,6 @@ class sac_trainer:
     
     def get_eval_metrics(self):
         """Run the eval actor and rertrieve training metrics."""
-        self.check_agent_setup()
-
         self._eval_actor.run()
         results = {}
         for metric in self._eval_actor.metrics:
@@ -418,7 +425,11 @@ class sac_trainer:
         if run_replay_init:
             self.run_replay_collector(show_progress_bar=replay_init_prog_bar)
         # Reset training step counter
-        self._agent.train_step_counter.assign(0)
+        if not resume_from_prev_run:
+            self._agent.train_step_counter.assign(0)
+        else:
+            if previous_train_step is not None:
+                self._agent.train_step_counter.assign(previous_train_step)
         # Get return values before start of training
         self._avg_return = self.get_eval_metrics().get('AverageReturn')
         self._returns.append(self._avg_return)
@@ -439,7 +450,7 @@ class sac_trainer:
                     )
                 )
                 # Keep track of evaluated returns
-                self._returns.append(metrics.get('AverageReturn'))
+                self._returns.append((step, metrics.get('AverageReturn')))
             if log_interval and step % log_interval == 0:
                 print(f'step {step}: loss = {loss_info.loss.numpy()}')
 
