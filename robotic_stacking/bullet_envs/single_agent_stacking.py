@@ -1,3 +1,4 @@
+import warnings
 from typing import Callable, Iterable, Literal, Optional, Tuple
 
 import numpy as np
@@ -56,7 +57,11 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         position is given.
     robot_kwargs: keyword args to the robot controller.
     num_cubes: number of physical cubes to stack.
-    cube_pose_kwargs: keyword args for `set_cube_poses()` method.
+    starting_cube_locations:
+    starting_cube_orientations:
+    cube_pose_params: Parameters to pass to the `set_cube_poses()` 
+        method for randomly initializing cube locations. If `None`, 
+        a default group of parameters is selected.
     target_formation: a target stack formation. A couple of preset 
         default options are available. 'default_4_corners' gives 
         4 vertical stacks spaced evenly from each other.
@@ -84,6 +89,12 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
     mask_actions: Use a boolean mask to restrict available actions. 
     track_pose_error: keep track of error between desired and actual 
         end-effector pose.
+    track_per_step_cube_mvmt: track Euclidean distance moved by cubes 
+        in transition steps. This can be used for reward shaping. 
+        Defaults to `True` if `reward_function` is 'dense'.
+    apply_collision_penalties: apply a penalty for self-collisions or 
+        collisions between arm and floor. Defaults to `True` if 
+        `reward_function` is 'dense'.
     reward_function: method for calculating rewards. 'sparse' uses a 
         binary reward that is negative for every step and positive 
         when the task is completed. Sparse rewards are scaled to +/- 1
@@ -94,31 +105,39 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
     """
     def __init__(self, 
                  robot_pose_initialization:
-                    Literal['random', 'specified', 'origin']='random', 
-                 random_position_limits:Tuple=(-0.1, 0.1), 
-                 random_orientation_limits:Tuple=(-0.25*np.pi, 0.25*np.pi), 
-                 robot_base_position:Optional[Tuple]=None, 
-                 robot_base_orientation:Optional[Tuple]=None, 
-                 robot_kwargs:Optional[dict]=None, 
-                 num_cubes:int=8, 
-                 cube_pose_kwargs:Optional[dict]=None, 
-                 num_targets:int=8, 
+                    Literal['random', 'specified', 'origin']='random',
+                 random_position_limits:Tuple=(-0.1, 0.1),
+                 random_orientation_limits:Tuple=(-0.25*np.pi, 0.25*np.pi),
+                 robot_base_position:Optional[Tuple]=None,
+                 robot_base_orientation:Optional[Tuple]=None,
+                 robot_kwargs:Optional[dict]=None,
+                 num_cubes:int=8,
+                 starting_cube_locations:Optional[np.array]=None,
+                 starting_cube_orientations:Optional[np.array]=None,
+                 cube_pose_params:Optional[dict]=None,
+                 num_targets:int=8,
                  target_formation:
                     Literal['default_4_corners', 'default_pyramid', 'specified']='default_4_corners',
-                 target_formation_coords:Optional[np.ndarray]=None, 
-                 target_formation_position:Optional[Tuple]=None, 
-                 target_cube_orientation:Optional[Tuple]=None, 
-                 use_GUI:bool=False, 
-                 gravity:Tuple=(0., 0., -9.8), 
-                 n_transition_steps_per_sec:int=10, 
-                 simulation_steps_per_sec:int=240, 
-                 episode_time_limit:int=120, 
-                 reset_on_episode_end:bool=False, 
-                 mask_actions:Optional[Tuple]=None, 
-                 track_pose_error:bool=True, 
-                 apply_collision_penalties:bool=True, 
+                 target_formation_coords:Optional[np.ndarray]=None,
+                 target_formation_position:Optional[Tuple]=None,
+                 target_cube_orientation:Optional[Tuple]=None,
+                 use_GUI:bool=False,
+                 gravity:Tuple=(0., 0., -9.8),
+                 n_transition_steps_per_sec:int=10,
+                 simulation_steps_per_sec:int=240,
+                 episode_time_limit:int=120,
+                 reset_on_episode_end:bool=False,
+                 mask_actions:Optional[Tuple]=None,
+                 track_pose_error:bool=False,
+                 track_per_step_cube_mvmt:bool=False,
+                 apply_collision_penalties:bool=False,
                  reward_function:
                     Literal['sparse', 'dense', 'custom']='dense'):
+        # maintain initial arg values for copying
+        self.__initial_arg_vals = locals().copy()
+        self.__initial_arg_vals = {
+            k: v for k, v in self.__initial_arg_vals.items() if not k == 'self'
+        }
         # set up robot pose
         self._robot_pose_init=robot_pose_initialization
         if self._robot_pose_init == 'random':
@@ -145,24 +164,28 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             self.robot_base_orientation = (0., 0., 0., 1.)
         else:
             raise ValueError(
-                f'`robot_pose_initialization={robot_pose_initialization}` is '
-                + 'invalid. Acceptable args are \'random\', \'specified\' and'
-                + ' \'origin\'.'
+                f"`robot_pose_initialization={robot_pose_initialization}` is "
+                + "invalid. Acceptable args are 'random', 'specified' and"
+                + " 'origin'."
             )
         self.robot_kwargs = robot_kwargs
         # set additional simulation parameters
         self.num_cubes = num_cubes
-        self.starting_cube_locations = None
-        self.starting_cube_orientations = None
-        if cube_pose_kwargs is None:
-            self.cube_pose_kwargs = {
+        self.starting_cube_locations = starting_cube_locations
+        self.starting_cube_orientations = starting_cube_orientations
+        self.cube_pose_params = {
                     'min_dist': 0.2, 'max_dist': 0.7, 
                     'sweep': (1.5*np.pi), 
                     'delta_z_rotations': [-0.5*np.pi, 0.5*np.pi], 
-                    'center': None
+                    'center': self.robot_base_position[:2]
                 }
-        else:
-            self.cube_pose_kwargs = cube_pose_kwargs
+        if cube_pose_params is not None:
+            for k in cube_pose_params.keys():
+                if k not in self.cube_pose_params.keys():
+                    raise KeyError(
+                        f"Parameter '{k}' in `cube_pose_params` is invalid."
+                    )
+            self.cube_pose_params.update(cube_pose_params)
         self.num_targets = num_targets
         self.target_formation = target_formation                      
         if self.target_formation == 'specified':
@@ -218,9 +241,17 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             mask_actions = np.array(mask_actions, dtype=bool)
         self._available_actions = mask_actions.nonzero()
         # initialize error tracking
-        self._track_pose_error = track_pose_error
+        self.track_pose_error = (
+            reward_function == 'dense' or track_pose_error
+        )
         # use collision penalties
-        self.apply_collision_penalties = apply_collision_penalties
+        self.apply_collision_penalties = (
+            reward_function == 'dense' or apply_collision_penalties
+        )
+        # track per-step cube movements
+        self.track_cube_step_mvmt =(
+            reward_function == 'dense' or track_per_step_cube_mvmt
+        )
         # reward function
         if reward_function not in ['sparse', 'dense', 'custom']:
             raise ValueError(
@@ -246,7 +277,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         # add target formation
         self.create_targets(self.target_cube_ort)
         # add physical cubes
-        self.set_cube_poses(**self.cube_pose_kwargs)
+        # self.set_cube_poses(**self.cube_pose_params)
         self.add_all_cubes()
         # extract environment attributes
         self._targets = {}
@@ -271,13 +302,16 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self.__action_RxRyRz = self.__action_array[3:6]
         self.__action_grips = self.__action_array[-1]
         # track pose accuracy with every transition step
-        if self._track_pose_error:
+        if self.track_pose_error:
             self.__step_pos_goal, self.__step_ort_goal = (
                 self.arm_control.get_end_eff_pose()
             )
         # track arm collisions with itself or the floor
         self._collision_counter_self = 0
         self._collision_counter_floor = 0
+        # track cube distances for reward calculation
+        if self.track_cube_step_mvmt:
+            self._per_step_cube_dist = 0
         # episode data
         self._episode_done = False
         self._episode_sim_step_count = 0
@@ -286,6 +320,38 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self._total_reward = 0
         # start tracking state observations
         self.process_state()
+
+    def copy_env(self):
+        """Create a replica of this environment."""
+        if self.__initial_arg_vals.get('use_GUI') is True:
+            raise AttributeError(
+                "The environment being copied has the `use_GUI` parameter set" 
+                + " to `True`. PyBullet does not allow multiple GUI clients." 
+                + " To copy this environment, set `use_GUI` to `False` in the" 
+                + " environment definition and try again."
+            )
+        replica = type(self)(**self.__initial_arg_vals.copy())
+        replica_attrs = replica.__dict__.copy()
+        for k in replica_attrs.keys():
+            if k.endswith('__initial_arg_vals'):
+                remove_key = k
+        _ = replica_attrs.pop(remove_key, None)
+        if not hasattr(self, '_sim_id'):
+            warnings.warn(
+                "*NOTE* The environment being copied was not connected (i.e. "
+                + " its `make()` method was not called).\nCalling `make()` now"
+                + " on the source environment. This helps ensure the copy's"
+                + " initial config is as close as possible to the original.",
+                stacklevel=2
+            )
+            self.make()
+        replica.__dict__.update(
+            {
+                k: v for k, v in self.__dict__.items() 
+                if k in replica_attrs.keys()
+            }
+        )
+        return replica
 
     def custom_reward_fn(self, reward_fn:Callable, **fn_kwargs):
         """
@@ -327,8 +393,14 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         return {
             'end_effector_position': self._current_ee_pos, 
             'end_effector_orientation': self._current_ee_ort, 
-            'end_effector_position_error': self._step_pose_error[0], 
-            'end_effector_orientation_error': self._step_pose_error[1], 
+            'end_effector_position_error': (
+                self._step_pose_error[0] if len(self._step_pose_error) > 0
+                else None
+            ),
+            'end_effector_orientation_error': (
+                self._step_pose_error[1] if len(self._step_pose_error) > 0
+                else None
+            ),
             'grip_finger_positions': self._current_grip_pos,  
             'grip_contact_w_cubes': self._grip_touching_cube, 
             'grip_force': self._grip_force, 
@@ -341,15 +413,11 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             'cubes_aligned_with_targets': self._cubes_aligned_w_targets, 
             'episode_done': self._episode_done, 
             'episode_reward': self._episode_reward,
-            'episode_count': self._num_episodes_finished + 1, 
+            'current_episode': self._num_episodes_finished + 1, 
             'total_reward': self._total_reward
         }
 
-    def set_cube_poses(self, 
-                       min_dist:float=0.2, max_dist:float=0.7, 
-                       sweep:float=(1.5*np.pi), 
-                       delta_z_rotations:Iterable=[-0.5*np.pi, 0.5*np.pi], 
-                       center:Optional[Iterable]=None):
+    def set_cube_poses(self):
         """ 
         Specify positions and orientations of physical cubes.
 
@@ -370,26 +438,15 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         Two arrays of length num_cubes; one for positions and another 
         for orientations.
         """
-        # update function args
-        self.cube_pose_kwargs.update(
-            {
-                'min_dist': min_dist, 'max_dist': max_dist, 
-                'sweep': sweep, 'delta_z_rotations': delta_z_rotations, 
-            }
-        )
+        min_dist = self.cube_pose_params.get('min_dist')
+        max_dist = self.cube_pose_params.get('max_dist')
+        sweep = self.cube_pose_params.get('sweep')
+        delta_z_rotations = self.cube_pose_params.get('delta_z_rotations')
+        center = self.cube_pose_params.get('center')
+
         cube_locs = np.zeros((self.num_cubes, 3), dtype=float)
         cube_orts = np.zeros((self.num_cubes, 3), dtype=float)
-        if center:
-            if len(center) != 2:
-                raise utils.IncorrectNumberOfArgs(
-                    '`center` takes exactly two arguments: x, y. '
-                    + f'Found {len(center)} argument(s).'
-                )
-            center = center
-        else:
-            # use x, y of robot base position
-            center = self.arm_control.robot_base_pose[0][:2]
-        self.cube_pose_kwargs.update({'center': center})
+
         coords = utils.make_polar_coords(
             min_dist, max_dist, -0.5*sweep, 0.5*sweep, n_coords=self.num_cubes
         )
@@ -404,8 +461,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         # convert to PyBullet quaternion format
         cube_orts = cube_orts[:, [1, 2, 3, 0]]
 
-        self.starting_cube_locations = cube_locs
-        self.starting_cube_orientations = cube_orts
+        return cube_locs, cube_orts
 
     def add_all_cubes(self, 
                       resolve_interferences:bool=True, 
@@ -425,9 +481,21 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         cubes or cube locations are tightly spaced.
         """
         if (self.starting_cube_locations is None 
-            or self.starting_cube_orientations is None):
-            self.set_cube_poses()
-        center = np.array(self.cube_pose_kwargs.get('center'))
+            and self.starting_cube_orientations is None):
+            self.starting_cube_locations, self.starting_cube_orientations = (
+                self.set_cube_poses()
+            )
+        if self.starting_cube_locations is None:
+            self.starting_cube_locations, _ = (
+                self.set_cube_poses()
+            )
+        if self.starting_cube_orientations is None:
+            _, self.starting_cube_orientations = (
+                self.set_cube_poses()
+            )
+
+        center = np.array(self.cube_pose_params.get('center'))
+
         for i in range(self.num_cubes):
             new_obj_id = self.add_env_object(
                 small_cube, 
@@ -445,10 +513,10 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
                     new_obj = self.env_objects.get(new_obj_id)
                     new_loc = np.zeros(3)
                     new_coords = utils.make_polar_coords(
-                        self.cube_pose_kwargs.get('min_dist'), 
-                        self.cube_pose_kwargs.get('max_dist'), 
-                        -0.5*self.cube_pose_kwargs.get('sweep'), 
-                        0.5*self.cube_pose_kwargs.get('sweep'), 
+                        self.cube_pose_params.get('min_dist'), 
+                        self.cube_pose_params.get('max_dist'), 
+                        -0.5*self.cube_pose_params.get('sweep'), 
+                        0.5*self.cube_pose_params.get('sweep'), 
                         n_coords=1
                     )
                     new_coords = (
@@ -463,15 +531,15 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
 
     def create_targets(self, orientation_angles:Optional[Iterable]=None):
         """Add the target stack positions with virtual cubes to env."""
-        if orientation_angles:
+        if orientation_angles is None:
+            orientation = (0., 0., 0., 1.)   
+        else:
             if len(orientation_angles) != 3:
                 raise utils.IncorrectNumberOfArgs(
                     '`orientation_angles` takes 3 elements, '
                     + f'but {len(orientation_angles)} were given.'
                 )
             orientation = utils.quaternion_from_RxRyRz(*orientation_angles)
-        else:
-            orientation = (0., 0., 0., 1.)
         for target_loc in self.target_coords:
             self.add_env_object(
                 virtual_cube, target_loc, orientation
@@ -513,6 +581,27 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
 
         return cube_face_centroid_coords
 
+    def current_joint_positions(self):
+        """Returns the current angles of all joints."""
+        return np.concatenate(
+            (
+                self.arm_control.arm_joint_positions(), 
+                self.arm_control.grip_finger_positions()
+            )
+        )
+
+    def get_cube_movement(self, before, after):
+        """
+        Get the distance moved by the cubes in a step.
+        
+        Calculates the Euclidean distance between the cube locations 
+        before and after a transition step. This can be used for 
+        shaping dense rewards.
+
+        before, after: cube point locations before and after the step.
+        """
+        return np.linalg.norm(after - before)
+    
     def check_target_alignment(self, tolerance:float=1e-3):
         """
         Check if any cube is aligned with a target.
@@ -546,10 +635,15 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             return True
         return False
 
-    def reset(self):
-        if self._robot_pose_init in ('specified', 'origin'):
-            self.reset_robot()
-        else:
+    def reset(self, reset_to_random:bool=False):
+        """
+        Resets the environment.
+
+        If the robot's base pose was initialized as 'random' and 
+        `reset_to_random` is `True`, the robot base is reset to a random 
+        new pose.
+        """
+        if reset_to_random and self._robot_pose_init == 'random':
             self.robot_base_position = (
                 np.random.uniform(*self.rand_pos_lims), 
                 np.random.uniform(*self.rand_pos_lims), 
@@ -561,27 +655,10 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             self.reset_robot(
                 self.robot_base_position, self.robot_base_orientation
             )
-        # rearrange cubes on reset
-        flip_x, flip_y = (
-            np.array(
-                [[-1, 1], [1, -1], [-1, -1]]
-            )[np.random.choice(np.arange(3))]
-        )
+        else:
+            self.reset_robot()
         for cube_id in self.cube_ids:
-            cube = self.cubes.get(cube_id)
-            new_cube_pos = (
-                cube._init_pos[0]*flip_x, 
-                cube._init_pos[1]*flip_y, 
-                cube._init_pos[2]
-            )
-            flip_angle = np.random.choice([-1, 1])
-            new_cube_ort = (
-                cube._init_ort[0], 
-                cube._init_ort[1], 
-                cube._init_ort[2]*flip_angle, 
-                cube._init_ort[3]
-            )
-            self.reset_env_object(cube_id, new_cube_pos, new_cube_ort)
+            self.reset_env_object(cube_id)
         self._episode_done = False
         self._episode_sim_step_count = 0
         self._episode_reward = 0
@@ -594,13 +671,13 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self._current_ee_pos, self._current_ee_ort = (
             self.arm_control.get_end_eff_pose()
         )
-        if self._track_pose_error:
+        if self.track_pose_error:
             self._step_pose_error = utils.calculate_distance_error(
                 self.__step_pos_goal, self.__step_ort_goal, 
                 self._current_ee_pos, self._current_ee_ort
             )
         else:
-            self._step_pose_error = None
+            self._step_pose_error = ()
         self._current_grip_pos = self.arm_control.grip_finger_positions()
         self._grip_touching_cube = np.array(
             [self.arm_control.detect_grip_contact(c) for c in self.cube_ids], 
@@ -648,7 +725,7 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             else:
                 reward = -1. / self._max_transition_steps
         else:
-            if self._track_pose_error:
+            if self.track_pose_error:
                 pose_error_penalty = env_utils.apply_pose_penalty(
                     self._step_pose_error[0], self._step_pose_error[1]
                 )*(-1)
@@ -661,15 +738,20 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
                 )*(-1)
             else:
                 collision_penalties = 0
-            # # add a reward when both gripper fingers touch a cube
-            # touching_cube = np.sum(np.all(self._grip_touching_cube, axis=1))
-            reward = (
-                (-1)/(self._max_transition_steps)
-                + np.sum(self._cubes_aligned_w_targets)
-                + pose_error_penalty
-                + collision_penalties
-                # + touching_cube/self._max_transition_steps
+            # add a reward when both gripper fingers touch a cube
+            touching_cube = np.sum(np.all(self._grip_touching_cube, axis=1))
+            # add a reward for moving a cube
+            moved_cube = (touching_cube*self._per_step_cube_dist)/self.num_cubes
+            # reward for cube alignment, scaled over n targets
+            alignment_success = (
+                np.sum(self._cubes_aligned_w_targets)/self.num_targets
             )
+            # assign -1 for every timestep the final task is not achieved and 
+            # calculate overall reward, scaled by episode time limit
+            reward = (
+                -1 + pose_error_penalty + collision_penalties + touching_cube
+                + moved_cube + alignment_success
+            )/self._max_transition_steps
         return reward
 
     def run_actions(self, actions:np.array, sleep:Optional[float]=None):
@@ -694,13 +776,40 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         )
         self._collision_counter_self = 0
         self._collision_counter_floor = 0
-        for setting in sequence:
-            self._episode_sim_step_count += 1            
-            self.arm_control.set_actuators(setting)
-            self.simulation_step(sleep=sleep)
-            self._collision_counter_self += self.arm_control.detect_self_collision()
-            self._collision_counter_floor += self.detect_floor_collision()
+        if self.track_cube_step_mvmt:
+            cubes_before = self._cube_point_locations
+        
+        collision_stop = False
+        for step, setting in enumerate(sequence):
+            if step == 0:
+                prev_jt_posns = self.current_joint_positions()
+            if collision_stop:
+                if step == len(sequence) - 1:
+                    self.arm_control.set_actuators(prev_jt_posns)
+                    self.simulation_step(sleep=sleep)
+                    collision_stop = False
+                else:
+                    if self_coll:
+                        self._collision_counter_self += 1
+                    if floor_coll:
+                        self._collision_counter_floor += 1
+                    self.simulation_step(sleep=sleep)
+            else:
+                self.arm_control.set_actuators(setting)
+                self.simulation_step(sleep=sleep)
+                self_coll = self.arm_control.detect_self_collision()
+                floor_coll = self.detect_floor_collision()
+            if self_coll or floor_coll:
+                collision_stop = True
+            if not collision_stop:
+                prev_jt_posns = sequence[step]
+            self._episode_sim_step_count += 1 
         self.process_state()
+        if self.track_cube_step_mvmt:
+            cubes_after = self._cube_point_locations
+            self._per_step_cube_dist = self.get_cube_movement(
+                cubes_before, cubes_after
+            )
         reward = self.calculate_reward()
         self._episode_reward += reward
         self._total_reward += reward

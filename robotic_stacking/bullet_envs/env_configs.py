@@ -25,13 +25,17 @@ class single_env_config:
     target_formation: str
     use_GUI: bool
     episode_time_limit: int
+    reset_on_episode_end: bool
     track_pose_error: bool
+    track_per_step_cube_mvmt: bool
     apply_collision_penalties: bool
     n_transition_steps_per_sec: int
     robot_base_position: Optional[Tuple] = None
     robot_base_orientation: Optional[Tuple] = None
     robot_kwargs: Optional[dict] = None
-    cube_pose_kwargs: Optional[dict] = None
+    starting_cube_locations : Optional[np.array] = None
+    starting_cube_orientations : Optional[np.array] = None
+    cube_pose_params: Optional[dict] = None
     target_formation_coords: Optional[np.ndarray] = None
     target_formation_position: Optional[Tuple] = None
     target_cube_orientation: Optional[Tuple] = None
@@ -62,8 +66,10 @@ class default_kvG3_stacking_single_env(single_env_config):
     target_formation: str ='default_4_corners'
     use_GUI: bool = False
     episode_time_limit: int = 120
-    track_pose_error: bool = True
-    apply_collision_penalties: bool = True
+    reset_on_episode_end: bool = False
+    track_pose_error: bool = False
+    track_per_step_cube_mvmt: bool = False
+    apply_collision_penalties: bool = False
     n_transition_steps_per_sec: int = 10
 
     def to_env(self):
