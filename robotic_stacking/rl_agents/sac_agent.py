@@ -2,7 +2,7 @@ from typing import List, Optional
 
 import tensorflow as tf
 from tf_agents.agents import ddpg, sac
-from tf_agents.environments import tf_py_environment
+from tf_agents.environments import py_environment, tf_py_environment
 from tf_agents.agents.sac import tanh_normal_projection_network
 from tf_agents.networks import actor_distribution_network
 from tf_agents.train.utils import spec_utils, strategy_utils, train_utils
@@ -57,7 +57,7 @@ class tfa_sac_agent:
     use_tpu: Applies TPU strategy if available.
     """
     def __init__(self,
-                 tfa_env:tf_py_environment,
+                 tfa_env:py_environment.PyEnvironment,
                  actor_net_params:dict,
                  critic_net_params:dict,
                  actor_activation_fn=tf.keras.activations.relu,
@@ -69,11 +69,11 @@ class tfa_sac_agent:
                  actor_dtype=tf.float32,
                  use_gpu=True, use_tpu=False):
 
-        self.collect_env = tfa_env._env
+        self.collect_env = tfa_env
         self._observation_spec, self._action_spec, self._time_step_spec = (
             spec_utils.get_tensor_specs(self.collect_env)
         )
-        self.eval_env = tfa_env._env
+        self.eval_env = tfa_env.copy_env()
         self.actor_net_params = actor_net_params
         self.critic_net_params = critic_net_params
         self.actor_activation = actor_activation_fn
@@ -81,9 +81,11 @@ class tfa_sac_agent:
         self.critic_output_activation = critic_output_activation
         self.actor_kernel_initializer = actor_kernel_initializer
         self.critic_kernel_initializer = (
-            critic_kernel_initializer or actor_kernel_initializer
+            critic_kernel_initializer or self.actor_kernel_initializer
         )
-        self.critic_last_kernel_init = critic_last_kernel_init
+        self.critic_last_kernel_init = (
+            critic_last_kernel_init or self.critic_kernel_initializer
+        )
         self.actor_layers_dtype = actor_dtype
         self.strategy = strategy_utils.get_strategy(
             tpu=use_tpu, use_gpu=use_gpu)
@@ -116,6 +118,7 @@ class tfa_sac_agent:
                             .TanhNormalProjectionNetwork
                         ),
                         activation_fn=self.actor_activation,
+                        kernel_initializer=self.actor_kernel_initializer,
                         dtype=self.actor_layers_dtype,
                         **self.actor_net_params
                     )
@@ -189,9 +192,14 @@ class tfa_sac_agent:
                    reward_scaling:types.Float=1.0, 
                    gamma:types.Float=0.99, 
                    use_log_alpha:bool=True, 
-                   name:Optional[str]=None):
+                   name:Optional[str]=None, 
+                   **kwargs):
         """
         Create the SAC agent.
+
+        Details of the SAC algorithm can be found in the original paper
+        by Haarnoja et al. "Soft Actor-Critic Algorithms and 
+        Applications".
 
         keyword args:
         ------------
@@ -209,7 +217,7 @@ class tfa_sac_agent:
             target updates.
         target_update_period: Interval for soft updates.
         target_entropy: Entropy target for automatic temperature 
-            adjustment. Default `None` uses num(actions) as in 
+            adjustment. Default `None` uses -1*dim(actions) as in 
             Haarnoja et al. reference implementation.
         reward_scaling: Multiplicative scale factor for rewards. 
             Typically not required with auto temperature adjustment.
@@ -217,6 +225,7 @@ class tfa_sac_agent:
         use_log_alpha: Use log_alpha instead of alpha to calculate 
             alpha loss.
         name: Optional name for agent. Default is class name.
+        kwargs: additional kwargs passed to `tf_agents.agents.SacAgent`
         """
         if self._agent is not None:
             new = input('Agent is already defined,'\
@@ -254,13 +263,15 @@ class tfa_sac_agent:
                     critic_loss_weight=critic_loss_wt, 
                     alpha_loss_weight=alpha_loss_wt, 
                     target_update_tau=target_update_tau, 
-                    target_update_period=target_update_period, 
+                    target_update_period=target_update_period,
+                    td_errors_loss_fn=td_errors_loss_fn,
                     target_entropy=target_entropy, 
                     reward_scale_factor=reward_scaling, 
                     gamma=gamma, 
                     use_log_alpha_in_alpha_loss=use_log_alpha, 
                     train_step_counter=self.train_step, 
-                    name=name
+                    name=name, 
+                    **kwargs
                 )
                 self._agent.initialize()
 
