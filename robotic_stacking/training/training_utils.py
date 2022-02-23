@@ -17,6 +17,14 @@ class MissingActorOrLearnerException(Exception):
     """Raise an exception if an actor or learner is not defined."""
     pass
 
+class MissingDriverException(Exception):
+    """Raise an exception if a TF-Agents driver is not defined."""
+    pass
+
+class IncorrectEnvironmentType(Exception):
+    """Make sure the correct environment type is used."""
+    pass
+
 # --------------------------------------------------------------------------- #
 
 
