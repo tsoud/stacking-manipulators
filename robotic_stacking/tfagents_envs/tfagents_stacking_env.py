@@ -1,6 +1,7 @@
 import json
 import pprint
 from collections import namedtuple
+from copy import deepcopy
 from typing import List, Optional, Union
 
 import numpy as np
@@ -10,7 +11,7 @@ from tf_agents import specs
 from tf_agents.environments import py_environment, tf_py_environment
 from tf_agents.trajectories import time_step
 
-from robotic_stacking.bullet_envs import env_configs
+from robotic_stacking.bullet_envs import env_configs, single_agent_stacking
 from robotic_stacking import utils
 
 # --------------------------------------------------------------------------- #
@@ -22,25 +23,31 @@ class tfagents_stacking_env(py_environment.PyEnvironment):
 
     keyword args:
     ------------
+    stacking_env_config: a stacking environment configuration with a 
+        `to_env()` method.
     action_bounds: lower and upper bounds [-/+ dx, -/+ dy, -/+ dz, 
         -/+ Rx, -/+ Ry, -/+ Rz, -/+ d_grip] for agnet actions. If the 
         env restricts (i.e. masks) some actions, only applicable 
         actions are used.
-    stacking_env_config: a stacking environment configuration with a 
-        `to_env()` method.
+    reset_env_to_random: If `True`, the robot is initialized with a 
+        random new pose whenever `reset()` is called. Only applied 
+        if `robot_pose_initialization` is set to 'random' in the env 
+        configuration.
     config_kwargs: optional dict of keyword args to pass to the 
         config constructor.
     """
     def __init__(self, 
-                 stacking_env_config:env_configs.single_env_config, 
-                 action_bounds_lower:Union[List, np.array], 
-                 action_bounds_upper:Union[List, np.array], 
-                 config_kwargs:Optional[dict]=None):
+                 stacking_env:single_agent_stacking.single_kvG3_7DH_stacking_env,
+                 action_bounds_lower:Union[List, np.array],
+                 action_bounds_upper:Union[List, np.array],
+                 reset_env_to_random:bool=False):
 
         super().__init__()
-        config_kwargs = {} if config_kwargs is None else config_kwargs
-        self._env_config = stacking_env_config(**config_kwargs)
-        self._env = self._env_config.to_env()
+
+        self._env = stacking_env
+        if not hasattr(self._env, '_sim_id'):
+            self._env.make()
+
         # determine action space specs from configuration
         self._available_actions = self._env._available_actions
         self._action_space_shape = self._available_actions[0].shape
@@ -52,8 +59,8 @@ class tfagents_stacking_env(py_environment.PyEnvironment):
         if len(action_bounds_lower) != self._action_space_shape[0]:
             raise utils.IncorrectNumberOfArgs(
                 'Length of action bounds should match the number of available'
-                + ' actions in the configuration. '
-                + f'There are {self._action_space_shape[0]} available actions'
+                + ' actions in the configuration.'
+                + f' There are {self._action_space_shape[0]} available actions'
                 + f' but {len(action_bounds_lower)} bound values were given.'
             )
         self._action_bounds_lower = action_bounds_lower
@@ -66,8 +73,6 @@ class tfagents_stacking_env(py_environment.PyEnvironment):
             maximum=self._action_bounds_upper,
             name='action'
         )
-        # launch the environment
-        self._env.make()
         # get the initial state
         _, self._episode_done, self._observations = self.get_state_data()
         # define the observation spec
@@ -82,6 +87,54 @@ class tfagents_stacking_env(py_environment.PyEnvironment):
                 'sim_steps_per_sec', 'max_transitions_per_episode', 
                 'available_actions'
                 ]
+        )
+        # arg for `reset()` method
+        self.reset_to_random = reset_env_to_random
+
+    @classmethod
+    def from_env_configuration(cls, 
+                               env_configuration:env_configs.single_env_config,
+                               action_bounds_lower:Union[List, np.array],
+                               action_bounds_upper:Union[List, np.array],
+                               reset_env_to_random:bool=False,
+                               config_kwargs:Optional[dict]=None):
+        """
+        Create the TF environment directly from a configuration.
+
+        keyword args:
+        ------------
+        env_config: a stacking environment configuration with a 
+            `to_env()` method.
+        action_bounds: lower and upper bounds [-/+ dx, -/+ dy, -/+ dz, 
+            -/+ Rx, -/+ Ry, -/+ Rz, -/+ d_grip] for agnet actions. If the 
+            env restricts (i.e. masks) some actions, only applicable 
+            actions are used.
+        reset_env_to_random: If `True`, the robot is initialized with a 
+            random new pose whenever `reset()` is called. Only applied 
+            if `robot_pose_initialization` is set to 'random' in the env 
+            configuration.
+        config_kwargs: optional dict of keyword args to pass to the 
+            config constructor.
+        """
+        env_config = env_configuration
+        config_kwargs = {} if config_kwargs is None else config_kwargs
+        new_env = env_config(**self.config_kwargs).to_env()
+        return cls(
+            stacking_env=new_env, 
+            action_bounds_lower=action_bounds_lower, 
+            action_bounds_upper=action_bounds_upper,
+            reset_env_to_random=reset_env_to_random
+        )
+
+    def copy_env(self):
+        """Returns a facsimile of the tf_env."""
+        env_copy = self._env.copy_env()
+
+        return tfagents_stacking_env(
+            stacking_env=env_copy, 
+            action_bounds_lower=self._action_bounds_lower, 
+            action_bounds_upper=self._action_bounds_upper, 
+            reset_env_to_random=self.reset_to_random,
         )
 
     def __repr__(self):
@@ -98,12 +151,6 @@ class tfagents_stacking_env(py_environment.PyEnvironment):
             tuple(actions)
         )
         return pprint.pformat(env_config_info._asdict(), width=80, sort_dicts=False)
-
-    @classmethod
-    def create_from_json(cls, json_filepath):
-        with open(json_filepath, 'r') as fp:
-            config_dict = json.load(fp=fp)
-        return cls(**config_dict)
 
     @property
     def env(self):
@@ -154,7 +201,7 @@ class tfagents_stacking_env(py_environment.PyEnvironment):
         return self._env
     
     def _reset(self):
-        self._env.reset()
+        self._env.reset(self.reset_to_random)
         # retrieve initial state
         _, self._episode_done, self._obs = self.get_state_data()
 
