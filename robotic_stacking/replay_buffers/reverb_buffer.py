@@ -59,7 +59,7 @@ class reverb_buffer:
                  replay_rate_limiter:
                     Optional[reverb.rate_limiters.RateLimiter]=None, 
                  replay_sample_batch_size:int=64, 
-                 replay_sample_prefetch:int=50, 
+                 replay_sample_prefetch:int=10, 
                  priority_exp:float=0.8, 
                  reverb_table_kwargs:Optional[dict]=None, 
                  reverb_buffer_kwargs:Optional[dict]=None, 
@@ -110,6 +110,7 @@ class reverb_buffer:
         self._replay_observer = None
         self._replay_dataset = None
         self._experience_dataset_fn = None
+        self._replay_iter = None
 
     @staticmethod
     def add_optional_kwargs(main_kwargs, opt_kwargs):
@@ -176,8 +177,15 @@ class reverb_buffer:
         )
         self._replay_dataset = self._replay_buffer.as_dataset(
             **replay_dataset_kwargs
-        )#.prefetch(self.replay_prefetch_size)
+        ).prefetch(self.replay_prefetch_size)
+        # for use with actor-learner algorithms:
         self._experience_dataset_fn = lambda: self._replay_dataset
+        # for use with driver algorithms:
+        self._replay_iter = iter(self._replay_dataset)
+
+    def iterate(self):
+        """Get a batch of trajectories from the replay buffer."""
+        return next(self._replay_iter)
 
     def replay_buffer_info(self) -> dict:
         """
