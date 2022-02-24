@@ -4,6 +4,7 @@ from collections import defaultdict, namedtuple
 from typing import List, Optional, Tuple, Union
 
 import pybullet_data
+from PIL import Image
 
 from robotic_stacking import robot
 from robotic_stacking.pybullet_connections import single_connection
@@ -263,6 +264,51 @@ class single_agent_env(simulation):
         self._sim.stepSimulation()
         if (sleep and self._use_GUI):
             time.sleep(sleep)
+
+    def render(self, 
+               show:bool=True, 
+               save_to:Optional[str]=None, 
+               img_size:tuple=(960, 512), 
+               camera_view:tuple=([-0.1, 0.3, 0.15], 1.5, 23., -15., 0., 2), 
+               projection_matrix:Optional[tuple]=None):
+        """
+        Render a frame. Used mainly for debugging.
+
+        keyword args:
+        ------------
+        show: show the image in a viewer (depends on system).
+        save_to: if a filepath is given, a .png is saved to the file.
+        img_size: (image width, image height) in pixels.
+        camera_view: Parameters to specify camera location and view 
+            if desired. It is often best to keep defaults.
+            Params:
+            [camera focal point x, y, z], distance to focus, 
+            camera yaw, camera pitch, camera roll, vertical axis 
+            (1 == Y, 2 == Z)
+        projection_matrix: An optional 4x4 projection matrix flattened 
+            to a 16-element tuple. Unless the user is very familiar 
+            with OpenGL rendering, it is strongly recommended to keep 
+            the default values.
+        """
+        view_matrix = self._sim.computeViewMatrixFromYawPitchRoll(*camera_view)      
+        if projection_matrix is None:
+            proj_matrix = self._sim.computeProjectionMatrixFOV(
+                60, (img_size[0]/img_size[1]), 0.1, 100
+            )
+        else:
+            proj_matrix = projection_matrix
+        img_data = self._sim.getCameraImage(
+            img_size[0], img_size[1],
+            view_matrix, proj_matrix,
+            shadow=0, flags=4
+        )
+        img = Image.fromarray(img_data[2], "RGBA")
+        if save_to:
+            img.save(save_to)
+        if show:
+            img.show()
+
+        return img
 
     def close(self):
         self._connection.close()
