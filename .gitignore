@@ -18,3 +18,4 @@ example_train_params.json
 example_nn_params_td3.json
 example_train_params_td3.json
 stack_*.json
+**/runs*
