@@ -1,5 +1,5 @@
 import pprint
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 from tf_agents.replay_buffers import (
     tf_uniform_replay_buffer, py_uniform_replay_buffer
@@ -24,9 +24,9 @@ class tfa_buffer:
         https://www.tensorflow.org/agents/api_docs/python/tf_agents/replay_buffers
         for details.
     insertion_batch_dim: batch dimension for trajectories inserted 
-        into buffer, obtained from the environment from as the 
-        `env.batch_size` attribute. This arg is ignored when using the 
-        'py_uniform' buffer.
+        into buffer, obtained from the environment's `env.batch_size`
+        attribute. This arg is ignored when using the 'py_uniform' 
+        buffer.
     timesteps_and_stride_per_sample: Tuple of (n_timesteps, stride).
         Number of timesteps to collect for each trajectory. The stride 
         describes how trajectories overlap. 
