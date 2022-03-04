@@ -71,10 +71,7 @@ class tfa_td3_agent:
                  critic_kernel_initializer:Optional=None,
                  critic_last_kernel_init:Optional=None):
 
-        self._env_is_tf_env = issubclass(
-            tfa_env.__class__, tf_py_environment.TFPyEnvironment
-        )
-        if self._env_is_tf_env:
+        if issubclass(tfa_env.__class__, tf_py_environment.TFPyEnvironment):
             raise IncorrectEnvironmentType(
                 "The input environment should be of type `PyEnvironment`. If" 
                 + " `use_tf_py_env` is set to `True`, the environment will be" 
@@ -82,9 +79,12 @@ class tfa_td3_agent:
             )
         self.collect_env = tfa_env
         self.eval_env = tfa_env.copy_env()
-        if use_tf_py_env:
+        self._using_tf_py_env = False
+        self.use_tf_py_env = use_tf_py_env
+        if self.use_tf_py_env:
             self.collect_env = self.collect_env.wrap_to_TF_env()
             self.eval_env = self.eval_env.wrap_to_TF_env()
+            self._using_tf_py_env = True
         # get network and training inputs
         self._observation_spec, self._action_spec, self._time_step_spec = (
             spec_utils.get_tensor_specs(self.collect_env)
@@ -102,7 +102,7 @@ class tfa_td3_agent:
         self.critic_last_kernel_init = (
             critic_last_kernel_init or self.critic_kernel_initializer
         )
-        self.train_step = None
+        self._train_step = None
         self._actor_net = None
         self._critic_net = None
         self._agent = None
@@ -243,7 +243,7 @@ class tfa_td3_agent:
 
         if (self._agent is None) or new:
             # Create the train step counter
-            self.train_step = train_utils.create_train_step()
+            self._train_step = train_utils.create_train_step()
             self._agent = td3.td3_agent.Td3Agent(
                 time_step_spec=self._time_step_spec,
                 action_spec=self._action_spec, 
@@ -260,6 +260,7 @@ class tfa_td3_agent:
                 gamma=gamma,
                 target_policy_noise=target_policy_noise,
                 target_policy_noise_clip=target_policy_noise_clip,
+                train_step_counter=self._train_step,
                 name=name,
                 **kwargs
             )
