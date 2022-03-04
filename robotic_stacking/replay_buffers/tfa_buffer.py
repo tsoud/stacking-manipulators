@@ -27,6 +27,9 @@ class tfa_buffer:
         into buffer, obtained from the environment's `env.batch_size`
         attribute. This arg is ignored when using the 'py_uniform' 
         buffer.
+    replay_scope_name: name to give replay buffer in the TensorFlow 
+        computation graph. If `None` and `buffer_type='tf_uniform'` a 
+        default name 'TFUniformReplayBuffer' is given. 
     timesteps_and_stride_per_sample: Tuple of (n_timesteps, stride).
         Number of timesteps to collect for each trajectory. The stride 
         describes how trajectories overlap. 
@@ -35,9 +38,7 @@ class tfa_buffer:
         and the next state. With stride == 1, the next state becomes 
         the start state for the subsequent trajectory.
         This parameter also specifies the `num_steps` argument for the 
-        buffer's `as_dataset()` method.
-    replay_scope_name: name to give replay buffer in the TensorFlow 
-        computation graph.
+        buffer's `as_dataset()` method.      
     replay_sample_batch_size: number of samples to take from replay 
         memory for each training step. Samples are batched for input.
     num_parallel_calls: number of elements to process in parallel. If 
@@ -51,8 +52,8 @@ class tfa_buffer:
                  replay_max_size:int,
                  buffer_type:Literal['tf_uniform', 'py_uniform']='tf_uniform',
                  insertion_batch_dim:Union[int, None]=None,
-                 timesteps_and_stride_per_sample:tuple=(2,0),
                  replay_scope_name:Optional[str]=None,
+                 timesteps_and_stride_per_sample:tuple=(2,0),
                  replay_sample_batch_size:int=64,
                  num_parallel_calls:Optional[int]=4,
                  replay_sample_prefetch:int=10,
@@ -72,6 +73,7 @@ class tfa_buffer:
                     + " batch dim is given by the environment's `batch_size`" 
                     + " attribute."
                 )
+            self.replay_scope_name = 'TFUniformReplayBuffer'
         elif self._buffer_type == 'py_uniform':
             self._buffer_ctor = py_uniform_replay_buffer.PyUniformReplayBuffer
         else:
@@ -116,9 +118,10 @@ class tfa_buffer:
         if self._buffer_type == 'tf_uniform':
             buffer_kwargs = dict(
                 data_spec=self.trajectory_data_spec, 
-                batch_size=self.replay_batch_size, 
+                batch_size=self.insertion_batch_dim, 
                 max_length=self.replay_max_size, 
-                scope=self.replay_scope_name
+                dataset_window_shift=self.traj_stride, 
+                # scope='TFUniformReplayBuffer'
             )
         else:
             buffer_kwargs = dict(
@@ -133,7 +136,7 @@ class tfa_buffer:
         replay_dataset_kwargs = dict(
             sample_batch_size=self.replay_batch_size, 
             num_steps=self.num_traj_steps, 
-            num_parallel_calls=self.num_parallel_calls
+            num_parallel_calls=self.num_parallel_calls,
         )
         self.add_optional_kwargs(
             replay_dataset_kwargs, self.replay_dataset_kwargs
