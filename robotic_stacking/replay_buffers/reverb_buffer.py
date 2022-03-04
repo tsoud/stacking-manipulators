@@ -205,8 +205,9 @@ class reverb_buffer:
             info['rate_limiter_info'] = self.replay_rate_limiter.__repr__()
             info['sampling_batch_size'] = self.replay_batch_size
             info['prefetch_limit'] = self.replay_prefetch_size
-            info['max_times_sampled'] = self._replay_buffer.get_table_info()\
-                .max_times_sampled
+            info['max_times_sampled'] = (
+                self._replay_buffer.get_table_info().max_times_sampled
+            )
         return pprint.pp(info, sort_dicts=False, indent=1, width=80)
 
     def shutdown_buffer(self):
