@@ -320,6 +320,12 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self._total_reward = 0
         # start tracking state observations
         self.process_state()
+        # track distance to cube for rewards
+        if self.num_cubes == 1:
+            self._start_dist_2_cube = env_utils.norm_dist_to_cube(
+                self._current_ee_pos, self._cube_point_locations[0].mean(axis=0)
+            )
+            self._cube_dist_reward = 0
 
     def copy_env(self):
         """Create a replica of this environment."""
@@ -746,11 +752,12 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             alignment_success = (
                 np.sum(self._cubes_aligned_w_targets)/self.num_targets
             )
+            gripper_2_cube_reward = self._cube_dist_reward if self.num_cubes == 1 else 0
             # assign -1 for every timestep the final task is not achieved and 
             # calculate overall reward, scaled by episode time limit
             reward = (
-                -1 + pose_error_penalty + collision_penalties + touching_cube
-                + moved_cube + alignment_success
+                -1 + pose_error_penalty*0.1 + collision_penalties + touching_cube
+                + moved_cube + alignment_success + gripper_2_cube_reward
             )/self._max_transition_steps
         return reward
 
@@ -778,7 +785,12 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
         self._collision_counter_floor = 0
         if self.track_cube_step_mvmt:
             cubes_before = self._cube_point_locations
-        
+        # track dist from gripper to cube for rewards
+        # only applies to pick and place tasks
+        if self.num_cubes == 1:
+            dist_2_cube_before = env_utils.norm_dist_to_cube(
+                self._current_ee_pos, self._cube_point_locations[0].mean(axis=0)
+            )
         collision_stop = False
         for step, setting in enumerate(sequence):
             if step == 0:
@@ -809,6 +821,13 @@ class single_kvG3_7DH_stacking_env(single_agent_env):
             cubes_after = self._cube_point_locations
             self._per_step_cube_dist = self.get_cube_movement(
                 cubes_before, cubes_after
+            )
+        if self.num_cubes == 1:
+            dist_2_cube_after = env_utils.norm_dist_to_cube(
+                self._current_ee_pos, self._cube_point_locations[0].mean(axis=0)
+            )
+            self._cube_dist_reward = env_utils.get_dist_reward(
+                dist_2_cube_before, dist_2_cube_after, self._start_dist_2_cube
             )
         reward = self.calculate_reward()
         self._episode_reward += reward

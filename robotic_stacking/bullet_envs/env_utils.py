@@ -112,6 +112,26 @@ def apply_pose_penalty(position_error:float, orientation_error:float,
 
     return position_weight*pos_penalty + ort_weight*ort_penalty
 
+
+def norm_dist_to_cube(gripper_pos, cube_centroid):
+    """Get the Euclidean distance between gripper and a cube."""
+    return np.linalg.norm(gripper_pos - cube_centroid)
+
+
+def get_dist_reward(before, after, base_dist, scale=1):
+    """
+    Calculate a reward based on distance
+
+    keyword args:
+    ------------
+    before, after: distances before and after step.
+    base_dist: a base distance for normalization. This is usually the 
+        distance between the gripper and its target at time step 0.
+    scale: a scaling factor for the reward.
+    """
+    return scale*((after - before)/base_dist)
+
+
 # ----------------------------------------------------------------------------
 
 
