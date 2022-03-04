@@ -60,7 +60,7 @@ class sac_trainer:
     save_interval: How often to save the policy.
     """
     def __init__(self,  
-                 agent:sac_agent.tfa_sac_agent, 
+                 agent:sac_agent.tfa_sac_agent,
                  replay_buffer:
                     Union[reverb_buffer.reverb_buffer, replay_buffers.replay_buffer.ReplayBuffer], 
                  initial_replay_steps:int, 
@@ -77,7 +77,7 @@ class sac_trainer:
         self._agent = agent.agent
         self._collect_env = self._agent_class.collect_env
         self._eval_env = self._agent_class.eval_env
-        self._train_step = self._agent_class.train_step
+        self._train_step = self._agent_class._train_step
         # replay buffer params and replay init actor steps
         self._replay_buffer = replay_buffer  
         self._replay_observer = self._replay_buffer._replay_observer
@@ -450,7 +450,13 @@ class sac_trainer:
                     )
                 )
                 # Keep track of evaluated returns
-                self._returns.append((step, metrics.get('AverageReturn')))
+                self._returns.append(
+                    (
+                        step, 
+                        metrics.get('AverageReturn'), 
+                        loss_info.loss.numpy()
+                    )
+                )
             if log_interval and step % log_interval == 0:
                 print(f'step {step}: loss = {loss_info.loss.numpy()}')
 
