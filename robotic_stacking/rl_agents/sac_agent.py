@@ -67,7 +67,8 @@ class tfa_sac_agent:
                  critic_kernel_initializer:Optional=None,
                  critic_last_kernel_init:Optional=None,
                  actor_dtype=tf.float32,
-                 use_gpu=True, use_tpu=False):
+                 use_gpu=True, 
+                 use_tpu=False):
 
         self.collect_env = tfa_env
         self._observation_spec, self._action_spec, self._time_step_spec = (
@@ -89,8 +90,8 @@ class tfa_sac_agent:
         self.actor_layers_dtype = actor_dtype
         self.strategy = strategy_utils.get_strategy(
             tpu=use_tpu, use_gpu=use_gpu)
-        # following attributes are defined when relevant methods are called.
-        self.train_step = None
+        # the following attributes are defined when relevant methods are called
+        self._train_step = None
         self._actor_net = None
         self._critic_net = None
         self._agent = None
@@ -250,7 +251,7 @@ class tfa_sac_agent:
         if (self._agent is None) or new:
             with self.strategy.scope():
                 # Create the train step counter
-                self.train_step = train_utils.create_train_step()
+                self._train_step = train_utils.create_train_step()
                 self._agent = sac.sac_agent.SacAgent(
                     time_step_spec=self._time_step_spec, 
                     action_spec=self._action_spec, 
@@ -269,7 +270,7 @@ class tfa_sac_agent:
                     reward_scale_factor=reward_scaling, 
                     gamma=gamma, 
                     use_log_alpha_in_alpha_loss=use_log_alpha, 
-                    train_step_counter=self.train_step, 
+                    train_step_counter=self._train_step, 
                     name=name, 
                     **kwargs
                 )
